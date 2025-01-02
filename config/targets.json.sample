@@ -1,19 +1,19 @@
 {
     "routers": [
         {
+            "# Router Identification": null,
             "name": "MYR1",
-            "ip_address": "192.168.100.225",
+            "enabled": true,
+            "ip_address": "192.168.88.1",
             "ssh_port": 22,
             "ssh_user": "rosbackup",
             "private_key": "./ssh-keys/private/id_rosbackup",
             "backup_password": "SpecificPassword",
-            "encrypted": false,
             "backup_retention_days": -1,
-            "keep_binary_backup": false,
+            "encrypted": false,
             "enable_binary_backup": true,
             "enable_plaintext_backup": true,
-            "enabled": true
+            "keep_binary_backup": false
         }
     ]
 }
-

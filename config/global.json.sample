@@ -1,31 +1,41 @@
 {
+    "# Backup Settings": null,
     "backup_path_parent": "backups",
-    "log_file": "./rosbackup.log",
-    "log_level": "INFO",
-    "enable_file_logging": false,
-    "log_retention_days": 90,
+    "backup_retention_days": 90,
+    "backup_password": "your-global-backup-password",
+
+    "# SSH Settings": null,
     "ssh_user": "rosbackup",
     "ssh_args": {
         "look_for_keys": false,
         "allow_agent": false
     },
+
+    "# Performance Settings": null,
     "parallel_execution": true,
     "max_parallel_backups": 5,
-    "backup_password": "YourGlobalBackupPassword",
-    "backup_retention_days": 90,
+
+    "# Logging Settings": null,
+    "log_file": "./rosbackup.log",
+    "log_level": "INFO",
+    "enable_file_logging": false,
+    "log_retention_days": 90,
+
+    "# Notification Settings": null,
     "notifications_enabled": false,
     "notify_on_failed_backups": true,
     "notify_on_successful_backups": false,
+    
+    "# SMTP Settings": null,
     "smtp": {
         "enabled": false,
-        "host": "mail.example.com",
+        "host": "smtp.example.com",
         "port": 587,
-        "username": "user@example.com",
-        "password": "SuperS3cr3t",
+        "username": "notifications@example.com",
+        "password": "your-smtp-password",
+        "from_email": "notifications@example.com",
+        "to_emails": ["admin@example.com"],
         "use_tls": true,
-        "use_ssl": false,
-        "from_email": "user@example.com",
-        "to_emails": ["admin@example.com"]
+        "use_ssl": false
     }
 }
-
