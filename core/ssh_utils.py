@@ -37,14 +37,24 @@ class SSHManager:
         try:
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(
-                hostname=host,
-                port=port,
-                username=username,
-                key_filename=key_path,
-                timeout=self.ssh_args.get('timeout', 30),
-                auth_timeout=self.ssh_args.get('auth_timeout', 30)
-            )
+            try:
+                ssh.connect(
+                    hostname=host,
+                    port=port,
+                    username=username,
+                    key_filename=key_path,
+                    timeout=self.ssh_args.get('timeout', 30),
+                    auth_timeout=self.ssh_args.get('auth_timeout', 30)
+                )
+            except paramiko.AuthenticationException:
+                self.logger.error(f"Authentication failed for user '{username}'. Please verify the username and SSH key.")
+                return None
+            except paramiko.SSHException as e:
+                if "private key file is encrypted" in str(e).lower():
+                    self.logger.error(f"SSH key at {key_path} is encrypted. Please provide an unencrypted key.")
+                else:
+                    self.logger.error(f"SSH connection failed: {str(e)}")
+                return None
             transport = ssh.get_transport()
             cipher = transport.remote_cipher
             mac = transport.remote_mac
