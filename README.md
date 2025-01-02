@@ -13,6 +13,7 @@ A robust Python-based utility for automating backups of multiple RouterOS device
 - **Informative**: Generates detailed info files containing router specifications
 - **Notification Support**: Integrated notification system for backup status updates
 - **Consistent Naming**: All backup files follow a standardized naming format
+- **Flexible Configuration**: Supports both YAML (recommended) and JSON configuration formats
 
 ## Directory Structure
 
@@ -25,10 +26,10 @@ A robust Python-based utility for automating backups of multiple RouterOS device
 │       └── {identity}-{ros_version}-{arch}-{timestamp}.INFO.txt # Router info
 ├── bootstrap_router.py             # Router setup utility
 ├── config/                         # Configuration files
-│   ├── global.json                 # Global settings (user generated)
-│   ├── global.json.sample          # Sample global settings
-│   ├── targets.json                # Router definitions (user generated)
-│   └── targets.json.sample         # Sample router definitions
+│   ├── global.yaml                 # Global settings (YAML, recommended)
+│   ├── global.json                 # Global settings (JSON, legacy)
+│   ├── targets.yaml                # Router definitions (YAML, recommended)
+│   └── targets.json                # Router definitions (JSON, legacy)
 ├── core/                           # Core functionality modules
 │   ├── __init__.py                 # Package initialization
 │   ├── backup_operations.py        # Backup operations management
@@ -72,6 +73,11 @@ For detailed setup instructions and configuration guide, see:
 
 4. Create configuration files from samples
    ```bash
+   # Option 1: Use YAML (recommended)
+   cp config/global.yaml.sample config/global.yaml
+   cp config/targets.yaml.sample config/targets.yaml
+   
+   # Option 2: Use JSON (legacy)
    cp config/global.json.sample config/global.json
    cp config/targets.json.sample config/targets.json
    ```
@@ -115,11 +121,49 @@ For detailed setup instructions and configuration guide, see:
 | `--dry-run` | false | Simulate operations without making changes |
 | `--no-color` | false | Disable colored output |
 
-## Configuration Parameters
+## Configuration
 
-### Global Configuration (global.json)
+### Global Settings
 
-Configuration options are organized into several categories:
+The global configuration file (`global.yaml` or `global.json`) contains settings that apply to all backup operations:
+
+Example (`global.yaml`):
+```yaml
+# Backup Settings
+backup_path_parent: backups
+backup_retention_days: 90
+backup_password: your-global-backup-password
+
+# SSH Settings
+ssh_user: rosbackup
+ssh_args:
+  look_for_keys: false
+  allow_agent: false
+
+# Performance Settings
+parallel_execution: true
+max_parallel_backups: 5
+```
+
+### Router Definitions
+
+The targets configuration file (`targets.yaml` or `targets.json`) contains the list of routers to back up:
+
+Example (`targets.yaml`):
+```yaml
+routers:
+  - name: HQ-ROUTER-01
+    enabled: true
+    host: 192.168.1.1
+    ssh_port: 22
+    ssh_user: backup
+    private_key: ./ssh-keys/private/id_rosbackup
+    encrypted: true
+    enable_binary_backup: true
+    enable_plaintext_backup: true
+```
+
+### Configuration Parameters
 
 #### Backup Settings
 | Parameter | Type | Default | Overridable | Description |
@@ -178,7 +222,7 @@ The `ssh_args` object supports the following parameters (all overridable per tar
 | `smtp.use_tls` | boolean | true | Enable TLS encryption |
 | `smtp.use_ssl` | boolean | false | Enable SSL encryption |
 
-### Router Configuration (targets.json)
+### Router Configuration (targets.yaml or targets.json)
 
 Each router in the `routers` array supports the following parameters:
 
@@ -194,11 +238,11 @@ Each router in the `routers` array supports the following parameters:
 | `enable_plaintext_backup` | boolean | true | - | Enable plaintext backup creation |
 | `keep_binary_backup` | boolean | false | - | Keep binary backup file on router |
 | `keep_plaintext_backup` | boolean | false | - | Keep plaintext backup file on router |
-| `backup_password` | string | - | global.json | Override global backup password |
-| `backup_retention_days` | integer | - | global.json | Override global backup retention period |
-| `ssh_args` | object | - | global.json | Override global SSH arguments |
+| `backup_password` | string | - | global.yaml | Override global backup password |
+| `backup_retention_days` | integer | - | global.yaml | Override global backup retention period |
+| `ssh_args` | object | - | global.yaml | Override global SSH arguments |
 
-The following parameters can be overridden from global.json:
+The following parameters can be overridden from global.yaml:
 - `backup_password`: Set a router-specific backup password
 - `backup_retention_days`: Set a router-specific retention period
 - `ssh_args`: Override any SSH connection parameters for this router
