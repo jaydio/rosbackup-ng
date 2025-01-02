@@ -203,13 +203,13 @@ routers:
 | Parameter | Type | Default | Overridable | Description |
 |-----------|------|---------|-------------|-------------|
 | `backup_path` | string | "backups" | No | Base directory for storing all router backups |
-| `backup_retention_days` | integer | -1 | Yes | Days to keep backups (-1 for infinite retention) |
+| `backup_retention_days` | integer | 90 | Yes | Days to keep backups (-1 for infinite retention) |
 | `backup_password` | string | - | Yes | Default password for encrypted backups |
 
 #### Performance Settings
 | Parameter | Type | Default | Overridable | Description |
 |-----------|------|---------|-------------|-------------|
-| `max_concurrent_backups` | integer | 1 | No | Maximum number of concurrent backups |
+| `max_concurrent_backups` | integer | 5 | No | Maximum number of concurrent backups |
 | `parallel_execution` | boolean | true | No | Enable parallel backup processing |
 
 #### Logging Settings
