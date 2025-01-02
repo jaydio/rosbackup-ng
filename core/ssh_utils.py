@@ -15,7 +15,11 @@ class SSHManager:
         Initialize SSH manager.
 
         Args:
-            ssh_args (Dict): SSH connection arguments
+            ssh_args (Dict): SSH connection arguments including:
+                - timeout: Connection timeout in seconds
+                - auth_timeout: Authentication timeout in seconds
+                - known_hosts_file: Optional path to known_hosts file
+                - add_target_host_key: Whether to automatically add target host keys
         """
         self.ssh_args = ssh_args
         self.logger = logging.getLogger(__name__)
@@ -36,7 +40,20 @@ class SSHManager:
         self.logger.debug(f"Attempting SSH connection to {host}:{port}")
         try:
             ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            
+            # Handle known hosts configuration
+            known_hosts_file = self.ssh_args.get('known_hosts_file')
+            if known_hosts_file:
+                try:
+                    ssh.load_host_keys(known_hosts_file)
+                except (FileNotFoundError, IOError) as e:
+                    self.logger.error(f"Failed to load known_hosts file '{known_hosts_file}': {str(e)}")
+                    return None
+                
+            # Configure host key policy
+            if self.ssh_args.get('add_target_host_key', True):
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            
             try:
                 ssh.connect(
                     hostname=host,
@@ -52,9 +69,15 @@ class SSHManager:
             except paramiko.SSHException as e:
                 if "private key file is encrypted" in str(e).lower():
                     self.logger.error(f"SSH key at {key_path} is encrypted. Please provide an unencrypted key.")
+                elif "not found in known_hosts" in str(e).lower():
+                    self.logger.error(f"Host key verification failed for {host}. Add the host key to your known_hosts file or set ssh.add_target_host_key to true.")
                 else:
                     self.logger.error(f"SSH connection failed: {str(e)}")
                 return None
+            except Exception as e:
+                self.logger.error(f"Failed to establish SSH connection: {str(e)}")
+                return None
+
             transport = ssh.get_transport()
             cipher = transport.remote_cipher
             mac = transport.remote_mac

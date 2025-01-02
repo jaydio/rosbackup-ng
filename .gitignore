@@ -7,12 +7,12 @@ ssh-keys/private/*
 !ssh-keys/private/.gitkeep
 ssh-keys/public/*
 !ssh-keys/public/.gitkeep
+ssh-keys/known_hosts
 
 # Additional SSH key patterns
 *.pem
 id_*
 *.key
-known_hosts
 
 # Config files - ignore actual configs but allow samples
 config/*.yaml

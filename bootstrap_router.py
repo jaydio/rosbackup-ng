@@ -35,6 +35,7 @@ import getpass
 import secrets
 import string
 import re
+import textwrap
 
 # ANSI color codes
 COLOR_RESET = "\033[0m"
@@ -66,7 +67,17 @@ class ColoredFormatter(logging.Formatter):
 
 def parse_arguments():
     """Parse command-line arguments with renamed parameters and default values."""
-    parser = argparse.ArgumentParser(description="Bootstrap a backup user on a RouterOS device.")
+    parser = argparse.ArgumentParser(
+        description="Bootstrap a backup user on a RouterOS device.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent('''
+            Examples:
+              python3 bootstrap_router.py --ip 192.168.100.225 --ssh-user admin --ssh-user-password adminpass
+              python3 bootstrap_router.py --ip 192.168.100.225 --ssh-user admin --ssh-user-private-key /path/to/admin_private_key
+
+            Note: Strict host key checking is disabled by default for initial setup.
+            ''')
+    )
 
     parser.add_argument('--ip', required=True, help='IP address of the target RouterOS device.')
     parser.add_argument('--ssh-user', default='admin', help='Existing SSH username with privileges to create users and manage SSH keys. Default: admin')
