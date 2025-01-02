@@ -16,7 +16,7 @@ cd rosbackup-ng
 
 2. Set up Python virtual environment (recommended)
 ```bash
-python3 -m venv venv
+python -m venv venv
 source venv/bin/activate
 ```
 
@@ -57,7 +57,7 @@ pip install -r requirements.txt
 
 Execute the backup script:
 ```bash
-python3 rosbackup.py
+python rosbackup.py
 ```
 
 ## Troubleshooting

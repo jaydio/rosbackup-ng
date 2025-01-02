@@ -101,7 +101,7 @@ For detailed setup instructions and configuration guide, see:
 
 2. Set up Python virtual environment (recommended)
    ```bash
-   python3 -m venv venv
+   python -m venv venv
    source venv/bin/activate
    ```
 
