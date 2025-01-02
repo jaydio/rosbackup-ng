@@ -25,7 +25,7 @@ The project follows a modular structure for better organization and maintainabil
 ├── bootstrap_router.py             # Router setup utility
 ├── config/                         # Configuration files
 │   ├── global.yaml                 # Global settings (user created)
-│   ├── global.yaml.sample         # Global settings
+│   ├── global.yaml.sample          # Global settings
 │   ├── targets.yaml                # Router definitions (user created)
 │   ├── targets.yaml.sample         # Router definitions
 ├── core/                           # Core functionality modules
