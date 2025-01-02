@@ -197,6 +197,55 @@ Enter password for SSH user 'admin': ********
 | `--backup-user-group` | No | full | RouterOS user group for backup user (must have write permission for binary backups) |
 | `--show-backup-credentials` | No | false | Display backup user credentials after setup |
 | `--log-file` | No | - | Path to log file (console only if not provided) |
+| `--no-color` | No | false | Disable colored output |
+
+## Command Line Options
+
+```
+Usage: bootstrap_router.py [OPTIONS]
+
+Required Options:
+  --ip IP                      IP address of the target RouterOS device
+  --backup-user-public-key PATH  Path to SSH public key for backup user
+
+Authentication Options (one required):
+  --ssh-user-password PASSWORD   Password for existing SSH user
+  --ssh-user-private-key PATH    Path to SSH private key for existing user
+
+Optional Settings:
+  --ssh-user USER               Existing SSH username [default: admin]
+  --ssh-port PORT               SSH port [default: 22]
+  --backup-user USER            Username to create [default: rosbackup]
+  --backup-user-password PASS   Password for backup user [default: random]
+  --backup-user-group GROUP     User group for backup user [default: full]
+  --show-backup-credentials     Show backup user credentials after setup
+  --log-file PATH              Path to log file [default: no file logging]
+  --no-color                   Disable colored output
+```
+
+### Examples
+
+1. Basic usage with password authentication:
+```bash
+python3 bootstrap_router.py --ip 192.168.1.1 \
+    --ssh-user admin --ssh-user-password adminpass \
+    --backup-user-public-key /path/to/backup_key.pub
+```
+
+2. Using SSH key authentication and custom backup user:
+```bash
+python3 bootstrap_router.py --ip 192.168.1.1 \
+    --ssh-user admin --ssh-user-private-key /path/to/admin_key \
+    --backup-user mybackup --backup-user-public-key /path/to/backup_key.pub \
+    --backup-user-group read
+```
+
+3. With logging and no colored output:
+```bash
+python3 bootstrap_router.py --ip 192.168.1.1 \
+    --backup-user-public-key /path/to/backup_key.pub \
+    --log-file bootstrap.log --no-color
+```
 
 ## Security Notes
 

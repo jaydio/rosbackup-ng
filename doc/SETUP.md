@@ -28,11 +28,10 @@ pip install -r requirements.txt
 ## Initial Configuration
 
 1. Create configuration files from samples
-```bash
-cp config/global.json.sample config/global.json
-cp config/targets.json.sample config/targets.json
-```
-
+   ```bash
+   cp config/global.json.sample config/global.json
+   cp config/targets.json.sample config/targets.json
+   ```
 2. Set up SSH keys (choose one option):
    
    a. Create symbolic links to existing keys:

@@ -1,8 +1,11 @@
-# notifications.py
+"""
+Notifications system for RouterOS backup operations.
+"""
 
 import smtplib
 from email.message import EmailMessage
 from typing import List, Dict
+import logging
 
 class Notifications:
     def __init__(self, enabled: bool, notify_on_failed: bool, notify_on_success: bool, smtp_config: Dict):
@@ -19,6 +22,7 @@ class Notifications:
         self.notify_on_failed = notify_on_failed
         self.notify_on_success = notify_on_success
         self.smtp_config = smtp_config
+        self.logger = logging.getLogger(__name__)
 
     def send_email(self, subject: str, body: str, attachments: List[str] = None):
         """
@@ -50,7 +54,7 @@ class Notifications:
                         file_name = file_path.split('/')[-1]
                         msg.add_attachment(file_data, maintype='application', subtype='octet-stream', filename=file_name)
                 except Exception as e:
-                    print(f"Failed to attach {file_path}: {e}")
+                    self.logger.error(f"Failed to attach {file_path}: {e}")
 
         try:
             if self.smtp_config.get("use_ssl", False):
@@ -63,8 +67,9 @@ class Notifications:
             server.login(self.smtp_config.get("username", ""), self.smtp_config.get("password", ""))
             server.send_message(msg)
             server.quit()
+            self.logger.info(f"Email notification sent: {subject}")
         except Exception as e:
-            print(f"Failed to send email: {e}")
+            self.logger.error(f"Failed to send email: {e}")
 
     def notify_backup(self, router: str, ip: str, success: bool, log_entries: List[str]):
         """
@@ -86,7 +91,7 @@ class Notifications:
             return
 
         subject = f"Backup {'Successful' if success else 'Failed'} for {router} ({ip})"
-        body = f"Backup {'completed successfully' if success else 'failed'} for router '{router}' at {ip} ({ip}).\n\n"
+        body = f"Backup {'completed successfully' if success else 'failed'} for router '{router}' at {ip}.\n\n"
 
         if log_entries:
             body += "Log Entries:\n"
@@ -94,6 +99,5 @@ class Notifications:
         else:
             body += "No additional log information available."
 
-        # For simplicity, we're not attaching the entire log. Enhancements can include reading the log file.
+        self.logger.debug(f"Preparing to send notification email for {router}")
         self.send_email(subject, body)
-

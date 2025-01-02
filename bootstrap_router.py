@@ -9,7 +9,7 @@ Usage:
                               [--backup-user-public-key <PUBLIC_KEY_PATH>] [--show-backup-credentials]
                               [--backup-user-group <USER_GROUP>]
                               
-                              [--log-file <LOG_FILE_PATH>]
+                              [--log-file <LOG_FILE_PATH>] [--no-color]
 
 Examples:
     # Using SSH password authentication and specifying all parameters
@@ -46,8 +46,16 @@ class ColoredFormatter(logging.Formatter):
     """
     Custom logging formatter to add colors based on log level.
     """
+    def __init__(self, use_colors=True):
+        """Initialize the formatter with color option."""
+        super().__init__('%(asctime)s [%(levelname)s] %(message)s')
+        self.use_colors = use_colors
+
     def format(self, record):
         message = super().format(record)
+        if not self.use_colors:
+            return message
+
         if record.levelno == logging.ERROR:
             message = f"{COLOR_ERROR}{message}{COLOR_RESET}"
         elif record.levelno == logging.WARNING:
@@ -76,18 +84,27 @@ def parse_arguments():
     parser.add_argument('--backup-user-group', default='full', help="User group to assign to the backup user on the router. Must have 'write' policy enabled. Default: 'full'")
 
     parser.add_argument('--log-file', default='', help='Path to log file. Default: empty (no file logging).')
+    parser.add_argument('--no-color', action='store_true', help='Disable colored output')
 
     return parser.parse_args()
 
-def setup_logging(log_file=''):
-    """Configure logging with colored console output and optional file logging."""
+def setup_logging(log_file='', use_colors=True):
+    """Configure logging with colored console output and optional file logging.
+    
+    Args:
+        log_file (str): Path to log file. If empty, file logging is disabled.
+        use_colors (bool): Whether to use colored output in console.
+    """
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
 
-    # Console handler with colored output
+    # Remove any existing handlers
+    logger.handlers = []
+
+    # Console handler with optional colored output
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
-    ch_formatter = ColoredFormatter('%(asctime)s [%(levelname)s] %(message)s')
+    ch_formatter = ColoredFormatter(use_colors=use_colors)
     ch.setFormatter(ch_formatter)
     logger.addHandler(ch)
 
@@ -96,7 +113,7 @@ def setup_logging(log_file=''):
         try:
             fh = logging.FileHandler(log_file)
             fh.setLevel(logging.DEBUG)
-            fh_formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
+            fh_formatter = ColoredFormatter(use_colors=False)  # Never use colors in file
             fh.setFormatter(fh_formatter)
             logger.addHandler(fh)
             logging.info(f"Logging to file '{log_file}' enabled.")
@@ -121,13 +138,13 @@ def read_public_key(public_key_path):
         logging.error(f"Failed to read public key from {public_key_path}: {e}")
         sys.exit(1)
 
-def create_ssh_client(ip, port, username, password=None, key_filepath=None):
+def create_ssh_client(ip, ssh_port, username, password=None, key_filepath=None):
     """
     Establish an SSH connection to the RouterOS device.
 
     Args:
         ip (str): IP address of the router.
-        port (int): SSH port (default 22).
+        ssh_port (int): SSH port number (default: 22).
         username (str): SSH username.
         password (str, optional): SSH password.
         key_filepath (str, optional): Path to SSH private key.
@@ -145,27 +162,27 @@ def create_ssh_client(ip, port, username, password=None, key_filepath=None):
         if key_filepath:
             key = paramiko.RSAKey.from_private_key_file(key_filepath)
             # When using key-based auth, allow agent and look for keys
-            client.connect(hostname=ip, port=port, username=username, pkey=key, timeout=10,
+            client.connect(hostname=ip, port=ssh_port, username=username, pkey=key, timeout=10,
                            allow_agent=True, look_for_keys=True)
             auth_method = "key-based authentication"
         else:
             # When using password-based auth, disable agent and look for keys
-            client.connect(hostname=ip, port=port, username=username, password=password, timeout=10,
+            client.connect(hostname=ip, port=ssh_port, username=username, password=password, timeout=10,
                            allow_agent=False, look_for_keys=False)
             auth_method = "password-based authentication"
 
         # Retrieve cipher and MAC details directly from Transport
         transport = client.get_transport()
         if transport is None or not transport.is_active():
-            logging.error(f"Transport is not active for {ip}:{port}")
+            logging.error(f"Transport is not active for {ip}:{ssh_port}")
             sys.exit(1)
         cipher = transport.remote_cipher
         mac = transport.remote_mac
-        logging.info(f"SSH connection established with {ip}:{port} using {auth_method}, cipher {cipher}, and MAC {mac}")
+        logging.info(f"SSH connection established with {ip}:{ssh_port} using {auth_method}, cipher {cipher}, and MAC {mac}")
 
         return client
     except Exception as e:
-        logging.error(f"SSH connection failed for {ip}:{port} - {e}")
+        logging.error(f"SSH connection failed for {ip}:{ssh_port} - {e}")
         sys.exit(1)
 
 def execute_command(ssh_client, command):
@@ -278,7 +295,9 @@ def install_public_key(ssh_client, backup_username, public_key):
 def main():
     """Main function to execute the bootstrap process."""
     args = parse_arguments()
-    setup_logging(log_file=args.log_file)
+
+    # Setup logging with color option
+    setup_logging(log_file=args.log_file, use_colors=not args.no_color)
 
     # Validate backup user public key path
     backup_public_key_path = Path(args.backup_user_public_key)
@@ -307,7 +326,7 @@ def main():
     # Establish SSH connection
     ssh_client = create_ssh_client(
         ip=args.ip,
-        port=args.ssh_port,  # Updated to use the --ssh-port argument
+        ssh_port=args.ssh_port,  
         username=args.ssh_user,
         password=ssh_password,
         key_filepath=ssh_key_filepath
