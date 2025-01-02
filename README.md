@@ -310,6 +310,25 @@ python rosbackup.py --log-level DEBUG --log-file backup.log
 python rosbackup.py --no-color
 ```
 
+## ROADMAP
+
+The following features are planned for future releases:
+
+### Notification Channels
+- Telegram integration for backup status notifications
+- NTFY.sh support for push notifications
+- Mattermost/Slack webhook integration
+- Generic webhook support for custom integrations
+- [...]
+
+### Enhanced Backup & Restore
+- Certificate store export functionality
+- Remote restore capability including certificate store
+
+### Automation & Scaling
+- Batch processing support for `bootstrap_router.py`
+- Enhanced parallel processing capabilities
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
