@@ -15,8 +15,8 @@ id_*
 known_hosts
 
 # Config files - ignore actual configs but allow samples
-config/*.json
-!config/*.json.sample
+config/*.yaml
+!config/*.yaml.sample
 
 # Python virtual environment
 venv/
