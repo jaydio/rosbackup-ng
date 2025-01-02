@@ -23,12 +23,16 @@ A robust Python-based utility for automating backups of multiple RouterOS device
 │       ├── {identity}-{ros_version}-{arch}-{timestamp}.backup  # Binary backup
 │       ├── {identity}-{ros_version}-{arch}-{timestamp}.rsc     # Plaintext export
 │       └── {identity}-{ros_version}-{arch}-{timestamp}.INFO.txt # Router info
+├── bootstrap_router.py             # Router setup utility
 ├── config/                         # Configuration files
-│   ├── global.json                 # Global settings
-│   └── targets.json                # Router definitions
+│   ├── global.json                 # Global settings (user generated)
+│   ├── global.json.sample          # Sample global settings
+│   ├── targets.json                # Router definitions (user generated)
+│   └── targets.json.sample         # Sample router definitions
 ├── core/                           # Core functionality modules
 │   ├── __init__.py                 # Package initialization
 │   ├── backup_operations.py        # Backup operations management
+│   ├── notifications.py            # Notification system
 │   ├── router_info.py              # Router information gathering
 │   └── ssh_utils.py                # SSH connection management
 ├── doc/                            # Documentation
@@ -36,6 +40,9 @@ A robust Python-based utility for automating backups of multiple RouterOS device
 │   └── SETUP.md                    # Detailed configuration guide
 ├── scripts/                        # Helper scripts
 │   └── rosbackup-completion.bash   # Command-line completion
+├── ssh-keys/                       # SSH key storage
+│   ├── private/                    # Private key directory
+│   └── public/                     # Public key directory
 ├── LICENSE                         # MIT License
 ├── README.md                       # This file
 ├── requirements.txt                # Python dependencies
@@ -225,6 +232,7 @@ Example configuration:
 The application is now organized into core modules for better maintainability:
 
 - **backup_operations.py**: Manages backup operations
+- **notifications.py**: Handles notification system
 - **router_info.py**: Handles gathering and formatting router information
 - **ssh_utils.py**: Manages SSH connections and operations
 
