@@ -110,11 +110,13 @@ Notes:
 ├── config/                 # Configuration directory
 │   ├── global.json         # Global settings
 │   └── targets.json        # Router targets configuration
+├── doc/
+│   ├── SETUP.md            # Detailed setup instructions
+│   └── BOOTSTRAP.md        # Bootstrap tool documentation
 ├── notifications.py        # Notification system implementation
 ├── README.md               # This file
 ├── requirements.txt        # Python dependencies
 ├── rosbackup.py            # Main backup script
-├── SETUP.md                # Detailed setup instructions
 └── ssh-keys/               # SSH authentication keys
     ├── private/            # Private key storage
     └── public/             # Public key storage
@@ -127,12 +129,10 @@ Notes:
 - scp
 - RouterOS devices with SSH access enabled
 
-## Last Updated
-
-2025-01-02
-
 ## License
 
-See LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-For detailed setup instructions and configuration examples, please refer to `SETUP.md`.
+For detailed information, see:
+- [Setup Guide](doc/SETUP.md)
+- [Bootstrap Tool Documentation](doc/BOOTSTRAP.md)
