@@ -29,13 +29,8 @@ pip install -r requirements.txt
 
 1. Create configuration files from samples
    ```bash
-   # Option 1: Use YAML (recommended)
    cp config/global.yaml.sample config/global.yaml
    cp config/targets.yaml.sample config/targets.yaml
-   
-   # Option 2: Use JSON (legacy)
-   cp config/global.json.sample config/global.json
-   cp config/targets.json.sample config/targets.json
    ```
 2. Set up SSH keys (choose one option):
    
@@ -55,9 +50,8 @@ pip install -r requirements.txt
    - Option 2: Manually set up SSH keys and user permissions
 
 4. Edit configuration files:
-   - Update global settings in either `config/global.yaml` (recommended) or `config/global.json`
-   - Add your routers to either `config/targets.yaml` (recommended) or `config/targets.json`
-   - YAML format is recommended for better readability and maintainability
+   - Update global settings in `config/global.yaml`
+   - Add your routers to `config/targets.yaml`
 
 ## Running Backups
 
@@ -79,7 +73,7 @@ python3 rosbackup.py
 - Ensure sufficient disk space on both router and backup server
 
 ### Configuration Issues
-- Verify YAML/JSON syntax in config files
+- Verify YAML syntax in config files
 - Check file paths are correct and accessible
 - Ensure all required fields are properly set
 

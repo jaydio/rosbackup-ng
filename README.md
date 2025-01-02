@@ -24,8 +24,10 @@ The project follows a modular structure for better organization and maintainabil
 ├── backups/                        # Backup storage directory
 ├── bootstrap_router.py             # Router setup utility
 ├── config/                         # Configuration files
-│   ├── global.yaml                 # Global settings (YAML, recommended)
-│   ├── targets.yaml                # Router definitions (YAML, recommended)
+│   ├── global.yaml                 # Global settings (user created)
+│   ├── global.yaml.sample         # Global settings
+│   ├── targets.yaml                # Router definitions (user created)
+│   ├── targets.yaml.sample         # Router definitions
 ├── core/                           # Core functionality modules
 │   ├── __init__.py                 # Package initialization
 │   ├── backup_operations.py        # Backup operations management
@@ -110,7 +112,6 @@ For detailed setup instructions and configuration guide, see:
 
 4. Create configuration files from samples
    ```bash
-   # Option 1: Use YAML (recommended)
    cp config/global.yaml.sample config/global.yaml
    cp config/targets.yaml.sample config/targets.yaml
    ```
