@@ -1,7 +1,6 @@
 {
     "routers": [
         {
-            "# Router Identification": null,
             "name": "MYR1",
             "enabled": true,
             "host": "192.168.88.1",

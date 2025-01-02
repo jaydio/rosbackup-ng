@@ -46,7 +46,10 @@ class SSHManager:
                 auth_timeout=self.ssh_args.get('auth_timeout', 30)
             )
             transport = ssh.get_transport()
+            cipher = transport.remote_cipher
+            mac = transport.remote_mac
             self.logger.info(f"SSH connection established with {host}:{port} using key-based authentication")
+            self.logger.info(f"Connection secured with cipher {cipher} and MAC {mac}")
             return ssh
         except Exception as e:
             self.logger.error(f"Failed to establish SSH connection to {host}:{port}: {str(e)}")

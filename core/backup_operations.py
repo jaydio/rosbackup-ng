@@ -185,6 +185,7 @@ class BackupManager:
             backup_name = f"{router_name}-{timestamp}.rsc"
             backup_path = backup_dir / backup_name
             backup_path.write_text(stdout)
+            self.logger.info(f"Plaintext backup saved as {backup_name}")
 
             # Optionally save the export on the router
             if keep_plaintext_backup:
