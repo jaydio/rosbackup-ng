@@ -1,0 +1,27 @@
+# Backup Settings
+backup_path_parent: backups
+backup_retention_days: 90
+backup_password: your-backup-password
+
+# SSH Settings
+ssh_user: rosbackup
+ssh_args:
+  look_for_keys: false
+  allow_agent: false
+
+# Performance Settings
+parallel_execution: true
+max_parallel_backups: 5
+
+# Notification Settings (optional)
+notifications:
+  smtp:
+    enabled: false
+    server: smtp.example.com
+    port: 587
+    username: your-username
+    password: your-password
+    from_address: rosbackup@example.com
+    to_address: admin@example.com
+    use_tls: true
+    use_ssl: false

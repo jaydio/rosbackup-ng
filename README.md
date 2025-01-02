@@ -13,7 +13,7 @@ A robust Python-based utility for automating backups of multiple RouterOS device
 - **Informative**: Generates detailed info files containing router specifications
 - **Notification Support**: Integrated notification system for backup status updates
 - **Consistent Naming**: All backup files follow a standardized naming format
-- **Flexible Configuration**: Supports both YAML (recommended) and JSON configuration formats
+- **Flexible Configuration**: Supports YAML configuration format
 
 ## Directory Structure
 
@@ -25,9 +25,7 @@ The project follows a modular structure for better organization and maintainabil
 ├── bootstrap_router.py             # Router setup utility
 ├── config/                         # Configuration files
 │   ├── global.yaml                 # Global settings (YAML, recommended)
-│   ├── global.json                 # Global settings (JSON, legacy)
 │   ├── targets.yaml                # Router definitions (YAML, recommended)
-│   └── targets.json                # Router definitions (JSON, legacy)
 ├── core/                           # Core functionality modules
 │   ├── __init__.py                 # Package initialization
 │   ├── backup_operations.py        # Backup operations management
@@ -115,10 +113,6 @@ For detailed setup instructions and configuration guide, see:
    # Option 1: Use YAML (recommended)
    cp config/global.yaml.sample config/global.yaml
    cp config/targets.yaml.sample config/targets.yaml
-   
-   # Option 2: Use JSON (legacy)
-   cp config/global.json.sample config/global.json
-   cp config/targets.json.sample config/targets.json
    ```
 
 5. Set up SSH keys (choose one):
@@ -164,7 +158,7 @@ For detailed setup instructions and configuration guide, see:
 
 ### Global Settings
 
-The global configuration file (`global.yaml` or `global.json`) contains settings that apply to all backup operations:
+The global configuration file contains settings that apply to all backup operations:
 
 Example (`global.yaml`):
 ```yaml
@@ -186,7 +180,7 @@ max_parallel_backups: 5
 
 ### Router Definitions
 
-The targets configuration file (`targets.yaml` or `targets.json`) contains the list of routers to back up:
+The targets configuration file contains the list of routers to back up:
 
 Example (`targets.yaml`):
 ```yaml
@@ -261,7 +255,7 @@ The `ssh_args` object supports the following parameters (all overridable per tar
 | `smtp.use_tls` | boolean | true | Enable TLS encryption |
 | `smtp.use_ssl` | boolean | false | Enable SSL encryption |
 
-### Router Configuration (targets.yaml or targets.json)
+### Router Configuration (targets.yaml)
 
 Each router in the `routers` array supports the following parameters:
 

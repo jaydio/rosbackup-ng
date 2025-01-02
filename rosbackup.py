@@ -4,7 +4,6 @@ rosbackup.py - A Python3 script for backing up multiple RouterOS devices via SSH
 """
 
 import os
-import json
 import yaml
 import sys
 import logging
@@ -71,13 +70,10 @@ def setup_logging(log_file: str = None, log_level: str = 'INFO', use_colors: boo
         root_logger.addHandler(file_handler)
 
 def load_config(config_path: Path) -> Dict:
-    """Load configuration file (JSON or YAML)."""
+    """Load configuration file (YAML)."""
     try:
         with open(config_path, 'r') as f:
-            if config_path.suffix in ['.yaml', '.yml']:
-                return yaml.safe_load(f)
-            else:  # Default to JSON for backward compatibility
-                return json.load(f)
+            return yaml.safe_load(f)
     except Exception as e:
         logging.error(f"Failed to load config file {config_path}: {str(e)}")
         raise
@@ -214,18 +210,15 @@ def main():
         logging.info("Running in DRY RUN mode - no changes will be made")
 
     config_dir = Path(args.config_dir)
-    # Try YAML first, fall back to JSON for backward compatibility
-    try:
-        global_config = load_config(config_dir / 'global.yaml')
-    except:
-        global_config = load_config(config_dir / 'global.json')
-        logging.warning("Using legacy JSON config file. Consider migrating to YAML.")
+    global_config_path = config_dir / "global.yaml"
+    targets_config_path = config_dir / "targets.yaml"
 
     try:
-        targets_config = load_config(config_dir / 'targets.yaml')
-    except:
-        targets_config = load_config(config_dir / 'targets.json')
-        logging.warning("Using legacy JSON config file. Consider migrating to YAML.")
+        global_config = load_config(global_config_path)
+        targets_config = load_config(targets_config_path)
+    except Exception as e:
+        logging.error(f"Failed to load configuration files: {str(e)}")
+        sys.exit(1)
 
     backup_path = Path(global_config.get('backup_path', 'backups'))
     if not args.dry_run:
