@@ -3,8 +3,8 @@
 bootstrap_router.py - A script to create a backup user on a RouterOS device and install an SSH public key for authentication.
 
 Usage:
-    python3 bootstrap_router.py [--ip <ROUTER_IP>] [--ssh-user <SSH_USERNAME>] [--ssh-user-password <SSH_PASSWORD>]
-                              [--ssh-user-private-key <SSH_PRIVATE_KEY_PATH>] [--ssh-port <SSH_PORT>] 
+    python3 bootstrap_router.py [--host <ROUTER_IP>] [--ssh-user <SSH_USERNAME>] [--ssh-user-password <SSH_PASSWORD>]
+                              [--ssh-user-private-key <SSH_PRIVATE_KEY_PATH>] [--port <SSH_PORT>] 
                               [--backup-user <BACKUP_USERNAME>] [--backup-user-password <BACKUP_USER_PASSWORD>]
                               [--backup-user-public-key <PUBLIC_KEY_PATH>] [--show-backup-credentials]
                               [--backup-user-group <USER_GROUP>]
@@ -13,17 +13,17 @@ Usage:
 
 Examples:
     # Using SSH password authentication and specifying all parameters
-    python3 bootstrap_router.py --ip 192.168.100.225 --ssh-user admin --ssh-user-password adminpass \
+    python3 bootstrap_router.py --host 192.168.100.225 --ssh-user admin --ssh-user-password adminpass \
         --backup-user backup --backup-user-password backuppass123 --backup-user-public-key /path/to/backup_user_key.pub \
-        --ssh-port 2222 --log-file /var/log/bootstrap_router.log
+        --port 2222 --log-file /var/log/bootstrap_router.log
 
     # Using SSH key-based authentication and generating a random password for the backup user
-    python3 bootstrap_router.py --ip 192.168.100.225 --ssh-user admin --ssh-user-private-key /path/to/admin_private_key \
-        --backup-user-public-key /path/to/backup_user_key.pub --ssh-port 2200
+    python3 bootstrap_router.py --host 192.168.100.225 --ssh-user admin --ssh-user-private-key /path/to/admin_private_key \
+        --backup-user-public-key /path/to/backup_user_key.pub --port 2200
 
     # Using interactive password prompt and showing backup credentials without file logging
-    python3 bootstrap_router.py --ip 192.168.100.225 --backup-user-public-key /path/to/backup_user_key.pub \
-        --show-backup-credentials --ssh-port 2222
+    python3 bootstrap_router.py --host 192.168.100.225 --backup-user-public-key /path/to/backup_user_key.pub \
+        --show-backup-credentials --port 2222
 """
 
 import argparse
@@ -65,39 +65,57 @@ class ColoredFormatter(logging.Formatter):
             message = f"{COLOR_INFO}{message}{COLOR_RESET}"
         return message
 
+def get_password(prompt: str) -> str:
+    """
+    Get password from user input, handling both interactive and non-interactive environments.
+    
+    Args:
+        prompt (str): Prompt to display to the user
+        
+    Returns:
+        str: The password entered by the user
+    """
+    try:
+        return getpass.getpass(prompt)
+    except (EOFError, getpass.GetPassWarning):
+        # Fall back to regular input if getpass fails
+        return input(prompt)
+
 def parse_arguments():
     """Parse command-line arguments with renamed parameters and default values."""
     parser = argparse.ArgumentParser(
-        description="Bootstrap a backup user on a RouterOS device.",
+        description="Bootstrap a backup user on a RouterOS device and install an SSH public key for authentication.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=textwrap.dedent('''
             Examples:
-              python3 bootstrap_router.py --ip 192.168.100.225 --ssh-user admin --ssh-user-password adminpass
-              python3 bootstrap_router.py --ip 192.168.100.225 --ssh-user admin --ssh-user-private-key /path/to/admin_private_key
+              %(prog)s --host 192.168.1.1 --backup-user-public-key ~/.ssh/backup.pub
+              %(prog)s --host router.local --ssh-user admin --port 2222 --backup-user-public-key ./keys/backup.pub
 
             Note: Strict host key checking is disabled by default for initial setup.
             ''')
     )
 
-    parser.add_argument('--ip', required=True, help='IP address of the target RouterOS device.')
+    parser.add_argument('--host', required=True, help='Hostname or IP address of the target RouterOS device')
     parser.add_argument('--ssh-user', default='admin', help='Existing SSH username with privileges to create users and manage SSH keys. Default: admin')
-    parser.add_argument('--ssh-port', type=int, default=22, help='SSH port to connect to. Default: 22')
-
-    auth_group = parser.add_mutually_exclusive_group()
-    auth_group.add_argument('--ssh-user-password', help='Password for the existing SSH user.')
-    auth_group.add_argument('--ssh-user-private-key', help='Path to the private SSH key for the existing SSH user.')
-
-    
-    parser.add_argument('--backup-user', default='rosbackup', help='Username to be created for backups. Default: rosbackup')
-    parser.add_argument('--backup-user-password', help='Password for the backup user. If not specified, a random 24-character alphanumeric password will be generated.')
-    parser.add_argument('--backup-user-public-key', required=True, help='Path to the SSH public key to install for the backup user.')
-    parser.add_argument('--show-backup-credentials', action='store_true', default=False, help='Show the backup user credentials after setup. Default: False')
-    parser.add_argument('--backup-user-group', default='full', help="User group to assign to the backup user on the router. Must have 'write' policy enabled. Default: 'full'")
-
-    parser.add_argument('--log-file', default='', help='Path to log file. Default: empty (no file logging).')
+    parser.add_argument('--ssh-user-password', help='Password for the SSH user. If not provided, will prompt for password')
+    parser.add_argument('--ssh-user-private-key', help='Path to private key file for the SSH user')
+    parser.add_argument('--port', type=int, default=22, help='SSH port number. Default: 22')
+    parser.add_argument('--backup-user', default='rosbackup', help='Username to create for backup operations. Default: rosbackup')
+    parser.add_argument('--backup-user-password', help='Password for the backup user. If not specified, a random password will be generated')
+    parser.add_argument('--backup-user-public-key', required=True, help='Path to public key file to install for the backup user')
+    parser.add_argument('--show-backup-credentials', action='store_true', default=False, help='Show the backup user credentials after setup')
+    parser.add_argument('--backup-user-group', default='full', help="User group for the backup user. Default: 'full'")
+    parser.add_argument('--log-file', help='Path to log file. If not specified, logging to file is disabled')
     parser.add_argument('--no-color', action='store_true', help='Disable colored output')
+    parser.add_argument('--dry-run', action='store_true', help='Show what would be done without making changes')
 
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    # If no password or private key is provided, prompt for password
+    if not args.ssh_user_password and not args.ssh_user_private_key:
+        args.ssh_user_password = get_password(f"Enter password for user '{args.ssh_user}': ")
+
+    return args
 
 def setup_logging(log_file='', use_colors=True):
     """Configure logging with colored console output and optional file logging.
@@ -149,13 +167,13 @@ def read_public_key(public_key_path):
         logging.error(f"Failed to read public key from {public_key_path}: {e}")
         sys.exit(1)
 
-def create_ssh_client(ip, ssh_port, username, password=None, key_filepath=None):
+def create_ssh_client(ip, port, username, password=None, key_filepath=None):
     """
     Establish an SSH connection to the RouterOS device.
 
     Args:
         ip (str): IP address of the router.
-        ssh_port (int): SSH port number (default: 22).
+        port (int): SSH port number (default: 22).
         username (str): SSH username.
         password (str, optional): SSH password.
         key_filepath (str, optional): Path to SSH private key.
@@ -173,27 +191,27 @@ def create_ssh_client(ip, ssh_port, username, password=None, key_filepath=None):
         if key_filepath:
             key = paramiko.RSAKey.from_private_key_file(key_filepath)
             # When using key-based auth, allow agent and look for keys
-            client.connect(hostname=ip, port=ssh_port, username=username, pkey=key, timeout=10,
+            client.connect(hostname=ip, port=port, username=username, pkey=key, timeout=10,
                            allow_agent=True, look_for_keys=True)
             auth_method = "key-based authentication"
         else:
             # When using password-based auth, disable agent and look for keys
-            client.connect(hostname=ip, port=ssh_port, username=username, password=password, timeout=10,
+            client.connect(hostname=ip, port=port, username=username, password=password, timeout=10,
                            allow_agent=False, look_for_keys=False)
             auth_method = "password-based authentication"
 
         # Retrieve cipher and MAC details directly from Transport
         transport = client.get_transport()
         if transport is None or not transport.is_active():
-            logging.error(f"Transport is not active for {ip}:{ssh_port}")
+            logging.error(f"Transport is not active for {ip}:{port}")
             sys.exit(1)
         cipher = transport.remote_cipher
         mac = transport.remote_mac
-        logging.info(f"SSH connection established with {ip}:{ssh_port} using {auth_method}, cipher {cipher}, and MAC {mac}")
+        logging.info(f"SSH connection established with {ip}:{port} using {auth_method}, cipher {cipher}, and MAC {mac}")
 
         return client
     except Exception as e:
-        logging.error(f"SSH connection failed for {ip}:{ssh_port} - {e}")
+        logging.error(f"SSH connection failed for {ip}:{port} - {e}")
         sys.exit(1)
 
 def execute_command(ssh_client, command):
@@ -323,52 +341,52 @@ def main():
     ssh_password = None
     ssh_key_filepath = None
 
-    if args.ssh_user_password:
-        ssh_password = args.ssh_user_password
-    elif args.ssh_user_private_key:
+    if args.ssh_user_private_key:
         ssh_key_filepath = args.ssh_user_private_key
         if not Path(ssh_key_filepath).is_file():
-            logging.error(f"SSH user private key file '{ssh_key_filepath}' does not exist.")
+            logging.error(f"SSH private key file '{ssh_key_filepath}' does not exist.")
             sys.exit(1)
     else:
-        # Prompt for SSH user password
-        ssh_password = getpass.getpass(prompt=f"Enter password for SSH user '{args.ssh_user}': ")
+        # Use password authentication
+        ssh_password = args.ssh_user_password
 
     # Establish SSH connection
     ssh_client = create_ssh_client(
-        ip=args.ip,
-        ssh_port=args.ssh_port,  
+        ip=args.host,
+        port=args.port,
         username=args.ssh_user,
         password=ssh_password,
         key_filepath=ssh_key_filepath
     )
 
+    if not ssh_client:
+        logging.error("Failed to establish SSH connection.")
+        sys.exit(1)
+
     # Retrieve router identity
-    router_identity = get_router_identity(ssh_client, args.ip)
-    logging.info(f"Attempting to create backup user on router '{router_identity}' at {args.ip}")
+    router_identity = get_router_identity(ssh_client, args.host)
+    logging.info(f"Attempting to create backup user on router '{router_identity}' at {args.host}")
 
     # Determine backup user password
     if args.backup_user_password:
         backup_user_password = args.backup_user_password
-        logging.info("Using provided backup user password.")
     else:
         backup_user_password = generate_random_password()
-        logging.info("No backup user password provided. A random password has been generated.")
 
-    # Create backup user
+    # Create the backup user
     user_created = create_backup_user(ssh_client, args.backup_user, backup_user_password, args.backup_user_group)
 
     if user_created:
         # Install public key for the backup user
         key_installed = install_public_key(ssh_client, args.backup_user, backup_public_key)
         if key_installed:
-            logging.info(f"Backup user '{args.backup_user}' is set up successfully on router {args.ip}.")
+            logging.info(f"Backup user '{args.backup_user}' is set up successfully on router {args.host}.")
             if args.show_backup_credentials:
                 print("\nBackup User Credentials:")
                 print(f"Username: {args.backup_user}")
                 print(f"Password: {backup_user_password}\n")
         else:
-            logging.error(f"Failed to install SSH public key for user '{args.backup_user}' on router {args.ip}.")
+            logging.error(f"Failed to install SSH public key for user '{args.backup_user}' on router {args.host}.")
     else:
         logging.warning(f"Skipping SSH key installation for user '{args.backup_user}' as user creation failed or user already exists.")
 
