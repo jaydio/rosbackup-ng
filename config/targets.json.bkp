@@ -1,0 +1,49 @@
+{
+    "routers": [
+        {
+            "name": "MYR1",
+            "ip_address": "192.168.100.128",
+            "ssh_port": 22,
+            "ssh_user": "backup",
+            "private_key": "./ssh-keys/private/id_rsa_pronetivity_rosbackup",
+            "backup_password": "SpecificPassword",
+            "encrypted": false,
+            "backup_retention_days": -1,
+            "keep_binary_backup": false
+        },
+        {
+            "name": "MYR2",
+            "ip_address": "192.168.100.233",
+            "ssh_port": 22,
+            "ssh_user": "backup",
+            "private_key": "./ssh-keys/private/id_rsa_pronetivity_rosbackup",
+            "backup_password": "SpecificPassword",
+            "encrypted": false,
+            "backup_retention_days": -1,
+            "keep_binary_backup": false
+        },
+        {
+            "name": "MYR3",
+            "ip_address": "192.168.100.236",
+            "ssh_port": 22,
+            "ssh_user": "backup",
+            "private_key": "./ssh-keys/private/id_rsa_pronetivity_rosbackup",
+            "backup_password": "SpecificPassword",
+            "encrypted": false,
+            "backup_retention_days": -1,
+            "keep_binary_backup": false
+        },
+        {
+            "name": "MYR4",
+            "ip_address": "192.168.100.225",
+            "ssh_port": 22,
+            "ssh_user": "backup",
+            "private_key": "./ssh-keys/private/id_rsa_pronetivity_rosbackup",
+            "backup_password": "SpecificPassword",
+            "encrypted": false,
+            "backup_retention_days": -1,
+            "keep_binary_backup": false
+        }
+    ]
+}
+

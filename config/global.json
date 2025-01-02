@@ -1,0 +1,31 @@
+{
+    "backup_path_parent": "backups",
+    "log_file": "./rosbackup.log",
+    "log_level": "INFO",
+    "enable_file_logging": false,
+    "log_retention_days": 90,
+    "ssh_user": "rosbackup",
+    "ssh_args": {
+        "look_for_keys": false,
+        "allow_agent": false
+    },
+    "parallel_execution": true,
+    "max_parallel_backups": 5,
+    "backup_password": "YourGlobalBackupPassword",
+    "backup_retention_days": 90,
+    "notifications_enabled": false,
+    "notify_on_failed_backups": true,
+    "notify_on_successful_backups": false,
+    "smtp": {
+        "enabled": false,
+        "host": "mail.example.com",
+        "port": 587,
+        "username": "user@example.com",
+        "password": "SuperS3cr3t",
+        "use_tls": true,
+        "use_ssl": false,
+        "from_email": "user@example.com",
+        "to_emails": ["admin@example.com"]
+    }
+}
+

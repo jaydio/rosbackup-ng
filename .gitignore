@@ -1,0 +1,32 @@
+# Ignore backup files but keep directory structure
+backups/*
+!backups/.gitkeep
+
+# Ignore SSH keys but keep directory structure
+ssh-keys/private/*
+!ssh-keys/private/.gitkeep
+ssh-keys/public/*
+!ssh-keys/public/.gitkeep
+
+# Additional SSH key patterns
+*.pem
+id_*
+*.key
+known_hosts
+
+# Python virtual environment
+venv/
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment files
+.env
