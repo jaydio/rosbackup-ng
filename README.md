@@ -101,7 +101,7 @@ For detailed setup instructions and configuration guide, see:
 
 2. Set up Python virtual environment (recommended)
    ```bash
-   python -m venv venv
+   python3 -m venv venv
    source venv/bin/activate
    ```
 
@@ -134,7 +134,7 @@ For detailed setup instructions and configuration guide, see:
 7. Configure RouterOS devices (choose one):
    ```bash
    # Option 1: Use bootstrap tool (recommended)
-   python bootstrap_router.py --ip <router_ip> --backup-user-public-key <path_to_public_key>
+   python3 bootstrap_router.py --host <router_ip> --backup-user-public-key <path_to_public_key>
    
    # Option 2: Manually configure SSH keys and permissions
    # See BOOTSTRAP.md for manual setup instructions
@@ -156,46 +156,6 @@ For detailed setup instructions and configuration guide, see:
 | `--no-color` | false | Disable colored output |
 
 ## Configuration
-
-### Global Settings
-
-The global configuration file contains settings that apply to all backup operations:
-
-Example (`global.yaml`):
-```yaml
-# Backup Settings
-backup_path_parent: backups
-backup_retention_days: 90
-backup_password: your-global-backup-password
-
-# SSH Settings
-ssh_user: rosbackup
-ssh_args:
-  look_for_keys: false
-  allow_agent: false
-
-# Performance Settings
-parallel_execution: true
-max_parallel_backups: 5
-```
-
-### Router Definitions
-
-The targets configuration file contains the list of routers to back up:
-
-Example (`targets.yaml`):
-```yaml
-routers:
-  - name: HQ-ROUTER-01
-    enabled: true
-    host: 192.168.1.1
-    ssh_port: 22
-    ssh_user: backup
-    private_key: ./ssh-keys/private/id_rosbackup
-    encrypted: true
-    enable_binary_backup: true
-    enable_plaintext_backup: true
-```
 
 ### Configuration Parameters
 
@@ -295,19 +255,19 @@ The application is now organized into core modules for better maintainability:
 ### Basic Usage
 ```bash
 # Regular backup
-python rosbackup.py
+python3 rosbackup.py
 
-# Dry-run mode
-python rosbackup.py --dry-run
+# Dry run to simulate backup operations
+python3 rosbackup.py --dry-run
 
 # Custom config directory
-python rosbackup.py --config-dir /path/to/config
+python3 rosbackup.py --config-dir /path/to/config
 
-# Debug logging
-python rosbackup.py --log-level DEBUG --log-file backup.log
+# Debug logging to file
+python3 rosbackup.py --log-level DEBUG --log-file backup.log
 
 # Disable colored output
-python rosbackup.py --no-color
+python3 rosbackup.py --no-color
 ```
 
 ## ROADMAP

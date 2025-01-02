@@ -8,7 +8,7 @@ A utility for automating the setup of backup users on RouterOS devices. This too
 - **SSH Key Management**: Installs public keys for password-less authentication
 - **Flexible Authentication**: Supports both password and key-based authentication for setup
 - **Secure Password Handling**: Option to generate random passwords or use specified ones
-- **Interactive Mode**: Can prompt for passwords instead of command-line input
+- **Interactive Mode**: Prompts for password if neither password nor key is provided
 - **Colored Logging**: Clear visual feedback with color-coded status messages
 
 ## Prerequisites
@@ -23,32 +23,35 @@ A utility for automating the setup of backup users on RouterOS devices. This too
 ### Basic Usage
 
 ```bash
-python3 bootstrap_router.py --ip <router_ip> --backup-user-public-key <path_to_public_key>
+python3 bootstrap_router.py --host <router_ip> --backup-user-public-key <path_to_public_key>
 ```
 
 ### Authentication Methods
 
 #### 1. Interactive Password Authentication
 
-Most secure method for production use. The SSH password is entered interactively and never stored in command history or visible in process list.
+Most secure method for production use. The SSH password is entered interactively when neither password nor private key is provided.
 
 ```bash
 python3 bootstrap_router.py \
-    --ip 192.168.88.1 \
+    --host 192.168.88.1 \
     --backup-user-public-key ssh-keys/public/id_rosbackup.pub
 ```
 
 Sample output:
 ```
-Enter password for SSH user 'admin': ********
-[INFO] SSH connection established with 192.168.88.1:22
-[INFO] Router identity: MYROUTER
-[INFO] Attempting to create backup user on router 'MYROUTER' at 192.168.88.1
-[INFO] No backup user password provided. A random password has been generated.
-[INFO] User 'rosbackup' created successfully with group 'full'
-[INFO] SSH public key installed for user 'rosbackup'
-[INFO] Backup user 'rosbackup' is set up successfully on router 192.168.88.1
-[INFO] SSH connection closed.
+Enter password for user 'admin': ********
+2025-01-02 22:46:06 [INFO] Connected (version 2.0, client ROSSSH)
+2025-01-02 22:46:06 [INFO] Authentication (password) successful!
+2025-01-02 22:46:06 [INFO] SSH connection established with 192.168.88.1:22 using password-based authentication
+2025-01-02 22:46:06 [INFO] Attempting to create backup user on router 'MYROUTER' at 192.168.88.1
+2025-01-02 22:46:06 [INFO] No backup user password provided. A random password will be generated.
+2025-01-02 22:46:06 [INFO] A random password with 24 characters has been generated for the backup user.
+2025-01-02 22:46:06 [INFO] User 'rosbackup' created successfully with group 'full'
+2025-01-02 22:46:06 [INFO] SSH public key installed for user 'rosbackup'.
+2025-01-02 22:46:06 [INFO] Backup user 'rosbackup' is set up successfully on router 192.168.88.1.
+2025-01-02 22:46:06 [INFO] SSH connection closed.
+2025-01-02 22:46:06 [INFO] Bootstrap process completed.
 ```
 
 #### 2. Command-Line Password Authentication
@@ -57,23 +60,10 @@ Useful for scripting and automation where interactive input isn't possible. Note
 
 ```bash
 python3 bootstrap_router.py \
-    --ip 192.168.88.1 \
+    --host 192.168.88.1 \
     --ssh-user admin \
     --ssh-user-password yourpassword \
     --backup-user-public-key ssh-keys/public/id_rosbackup.pub
-```
-
-Sample output:
-```
-[INFO] SSH connection established with 192.168.88.1:22
-[INFO] Router identity: MYROUTER
-[WARNING] Using password on command line is not recommended for production use
-[INFO] Attempting to create backup user on router 'MYROUTER' at 192.168.88.1
-[INFO] No backup user password provided. A random password has been generated.
-[INFO] User 'rosbackup' created successfully with group 'full'
-[INFO] SSH public key installed for user 'rosbackup'
-[INFO] Backup user 'rosbackup' is set up successfully on router 192.168.88.1
-[INFO] SSH connection closed.
 ```
 
 #### 3. Key-Based Authentication
@@ -82,112 +72,69 @@ Recommended method for automation and scripted deployments. Requires pre-configu
 
 ```bash
 python3 bootstrap_router.py \
-    --ip 192.168.88.1 \
+    --host 192.168.88.1 \
     --ssh-user admin \
     --ssh-user-private-key ~/.ssh/id_rsa \
     --backup-user-public-key ssh-keys/public/id_rosbackup.pub
 ```
 
-Sample output:
-```
-[INFO] SSH connection established with 192.168.88.1:22 using key-based authentication
-[INFO] Router identity: MYROUTER
-[INFO] Attempting to create backup user on router 'MYROUTER' at 192.168.88.1
-[INFO] No backup user password provided. A random password has been generated.
-[INFO] User 'rosbackup' created successfully with group 'full'
-[INFO] SSH public key installed for user 'rosbackup'
-[INFO] Backup user 'rosbackup' is set up successfully on router 192.168.88.1
-[INFO] SSH connection closed.
-```
+### Additional Options
 
-### Advanced Options
+#### Show Backup User Credentials
 
-#### Custom Port and User Group
-
-For routers with non-standard SSH ports or when specific user group permissions are required. The 'full' group is recommended as it ensures all backup types will function correctly.
+When you need to view and store the generated backup user credentials during bootstrap. Important: Store these credentials securely.
 
 ```bash
 python3 bootstrap_router.py \
-    --ip 192.168.88.1 \
-    --ssh-port 2222 \
-    --backup-user rosbackup \
-    --backup-user-group full \
-    --backup-user-public-key ssh-keys/public/id_rosbackup.pub
-```
-
-Sample output:
-```
-Enter password for SSH user 'admin': ********
-[INFO] SSH connection established with 192.168.88.1:2222
-[INFO] Router identity: MYROUTER
-[INFO] Attempting to create backup user on router 'MYROUTER' at 192.168.88.1
-[INFO] No backup user password provided. A random password has been generated.
-[INFO] User 'rosbackup' created successfully with group 'full'
-[INFO] SSH public key installed for user 'rosbackup'
-[INFO] Backup user 'rosbackup' is set up successfully on router 192.168.88.1
-[INFO] SSH connection closed.
-```
-
-#### Display Generated Credentials
-
-When you need to view and store the generated backup user credentials during bootstrap. Important: Store these credentials securely as they won't be shown again. Usually this option is not required for production use when SSH key-based authentication is used.
-
-```bash
-python3 bootstrap_router.py \
-    --ip 192.168.88.1 \
+    --host 192.168.88.1 \
     --backup-user-public-key ssh-keys/public/id_rosbackup.pub \
     --show-backup-credentials
 ```
 
-Sample output:
+Sample output with credentials:
 ```
-Enter password for SSH user 'admin': ********
-[INFO] SSH connection established with 192.168.88.1:22
-[INFO] Router identity: MYROUTER
-[INFO] Attempting to create backup user on router 'MYROUTER' at 192.168.88.1
-[INFO] No backup user password provided. A random password has been generated.
-[INFO] User 'rosbackup' created successfully with group 'full'
-[INFO] SSH public key installed for user 'rosbackup'
-[INFO] Backup user 'rosbackup' is set up successfully on router 192.168.88.1
-
+...
 Backup User Credentials:
 Username: rosbackup
-Password: Xj9#mK2$pL5vN8@qR3wS
-
-[INFO] SSH connection closed.
+Password: Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8
+...
 ```
 
-#### Enable File Logging
+## Command-Line Options
 
-Useful for auditing, troubleshooting, or maintaining operation records. The log file will contain all operations except sensitive data like passwords and keys.
+| Option | Default | Required | Description |
+|--------|---------|----------|-------------|
+| `--host` | - | Yes | Hostname or IP address of the RouterOS device |
+| `--ssh-user` | admin | No | Username for SSH authentication |
+| `--ssh-user-password` | - | No* | Password for SSH authentication |
+| `--ssh-user-private-key` | - | No* | Path to private key for SSH authentication |
+| `--port` | 22 | No | SSH port number |
+| `--backup-user` | rosbackup | No | Username to create for backup operations |
+| `--backup-user-password` | - | No | Password for backup user (random if not specified) |
+| `--backup-user-public-key` | - | Yes | Path to public key file to install |
+| `--backup-user-group` | full | No | User group for the backup user |
+| `--show-backup-credentials` | false | No | Show generated credentials |
+| `--log-file` | - | No | Path to log file |
+| `--no-color` | false | No | Disable colored output |
+| `--dry-run` | false | No | Show what would be done without making changes |
 
-```bash
-python3 bootstrap_router.py \
-    --ip 192.168.88.1 \
-    --backup-user-public-key ssh-keys/public/id_rosbackup.pub \
-    --log-file ./bootstrap.log
-```
+\* Either `--ssh-user-password` or `--ssh-user-private-key` must be provided, or the script will prompt for password.
 
-Sample output:
-```
-Enter password for SSH user 'admin': ********
-[INFO] Logging to file: ./bootstrap.log
-[INFO] SSH connection established with 192.168.88.1:22
-[INFO] Router identity: MYROUTER
-[INFO] Attempting to create backup user on router 'MYROUTER' at 192.168.88.1
-[INFO] No backup user password provided. A random password has been generated.
-[INFO] User 'rosbackup' created successfully with group 'full'
-[INFO] SSH public key installed for user 'rosbackup'
-[INFO] Backup user 'rosbackup' is set up successfully on router 192.168.88.1
-[INFO] SSH connection closed.
-```
+## Important Notes
+
+1. The backup user is created with the specified group permissions (default: full)
+   > **Note**: The user group MUST have write permission for binary backups to work. The 'full' group is recommended as it ensures all backup types will function correctly.
+2. SSH keys are recommended over password authentication
+3. Generated passwords are 24 characters long with mixed case letters and numbers
+4. When a user already exists, the script will skip user creation and attempt to install the SSH key
+5. The script will prompt for password if neither `--ssh-user-password` nor `--ssh-user-private-key` is provided
 
 ## Parameters
 
 | Parameter | Required | Default | Description |
 |-----------|----------|---------|-------------|
-| `--ip` | Yes | - | RouterOS device IP address |
-| `--ssh-port` | No | 22 | SSH port number |
+| `--host` | Yes | - | RouterOS device IP address |
+| `--port` | No | 22 | SSH port number |
 | `--ssh-user` | No | admin | Username for initial SSH connection |
 | `--ssh-user-password` | No | - | Password for SSH user (will prompt if not provided) |
 | `--ssh-user-private-key` | No | - | Private key path for SSH user authentication |
@@ -205,7 +152,7 @@ Enter password for SSH user 'admin': ********
 Usage: bootstrap_router.py [OPTIONS]
 
 Required Options:
-  --ip IP                      IP address of the target RouterOS device
+  --host HOST                  Hostname or IP address of the target RouterOS device
   --backup-user-public-key PATH  Path to SSH public key for backup user
 
 Authentication Options (one required):
@@ -214,27 +161,28 @@ Authentication Options (one required):
 
 Optional Settings:
   --ssh-user USER               Existing SSH username [default: admin]
-  --ssh-port PORT               SSH port [default: 22]
+  --port PORT                   SSH port [default: 22]
   --backup-user USER            Username to create [default: rosbackup]
   --backup-user-password PASS   Password for backup user [default: random]
   --backup-user-group GROUP     User group for backup user [default: full]
   --show-backup-credentials     Show backup user credentials after setup
   --log-file PATH              Path to log file [default: no file logging]
   --no-color                   Disable colored output
+  --dry-run                    Show what would be done without making changes
 ```
 
 ### Examples
 
 1. Basic usage with password authentication:
 ```bash
-python3 bootstrap_router.py --ip 192.168.1.1 \
+python3 bootstrap_router.py --host 192.168.1.1 \
     --ssh-user admin --ssh-user-password adminpass \
     --backup-user-public-key /path/to/backup_key.pub
 ```
 
 2. Using SSH key authentication and custom backup user:
 ```bash
-python3 bootstrap_router.py --ip 192.168.1.1 \
+python3 bootstrap_router.py --host 192.168.1.1 \
     --ssh-user admin --ssh-user-private-key /path/to/admin_key \
     --backup-user mybackup --backup-user-public-key /path/to/backup_key.pub \
     --backup-user-group read
@@ -242,7 +190,7 @@ python3 bootstrap_router.py --ip 192.168.1.1 \
 
 3. With logging and no colored output:
 ```bash
-python3 bootstrap_router.py --ip 192.168.1.1 \
+python3 bootstrap_router.py --host 192.168.1.1 \
     --backup-user-public-key /path/to/backup_key.pub \
     --log-file bootstrap.log --no-color
 ```

@@ -4,7 +4,7 @@ bootstrap_router.py - A script to create a backup user on a RouterOS device and 
 
 Usage:
     python3 bootstrap_router.py [--host <ROUTER_IP>] [--ssh-user <SSH_USERNAME>] [--ssh-user-password <SSH_PASSWORD>]
-                              [--ssh-user-private-key <SSH_PRIVATE_KEY_PATH>] [--port <SSH_PORT>] 
+                              [--ssh-user-private-key <SSH_PRIVATE_KEY_PATH>] [--ssh-port <SSH_PORT>] 
                               [--backup-user <BACKUP_USERNAME>] [--backup-user-password <BACKUP_USER_PASSWORD>]
                               [--backup-user-public-key <PUBLIC_KEY_PATH>] [--show-backup-credentials]
                               [--backup-user-group <USER_GROUP>]
@@ -15,15 +15,15 @@ Examples:
     # Using SSH password authentication and specifying all parameters
     python3 bootstrap_router.py --host 192.168.100.225 --ssh-user admin --ssh-user-password adminpass \
         --backup-user backup --backup-user-password backuppass123 --backup-user-public-key /path/to/backup_user_key.pub \
-        --port 2222 --log-file /var/log/bootstrap_router.log
+        --ssh-port 2222 --log-file /var/log/bootstrap_router.log
 
     # Using SSH key-based authentication and generating a random password for the backup user
     python3 bootstrap_router.py --host 192.168.100.225 --ssh-user admin --ssh-user-private-key /path/to/admin_private_key \
-        --backup-user-public-key /path/to/backup_user_key.pub --port 2200
+        --backup-user-public-key /path/to/backup_user_key.pub --ssh-port 2200
 
     # Using interactive password prompt and showing backup credentials without file logging
     python3 bootstrap_router.py --host 192.168.100.225 --backup-user-public-key /path/to/backup_user_key.pub \
-        --show-backup-credentials --port 2222
+        --show-backup-credentials --ssh-port 2222
 """
 
 import argparse
@@ -36,34 +36,57 @@ import secrets
 import string
 import re
 import textwrap
-
-# ANSI color codes
-COLOR_RESET = "\033[0m"
-COLOR_INFO = "\033[92m"     # Green
-COLOR_WARNING = "\033[93m"  # Yellow
-COLOR_ERROR = "\033[91m"    # Red
+import random
 
 class ColoredFormatter(logging.Formatter):
-    """
-    Custom logging formatter to add colors based on log level.
-    """
+    """Custom formatter adding colors to log levels."""
+    
+    green = "\x1b[32;20m"
+    yellow = "\x1b[33;20m"
+    red = "\x1b[31;20m"
+    reset = "\x1b[0m"
+    format_str = "%(asctime)s [%(levelname)s] %(message)s"
+
     def __init__(self, use_colors=True):
         """Initialize the formatter with color option."""
-        super().__init__('%(asctime)s [%(levelname)s] %(message)s')
+        super().__init__()
         self.use_colors = use_colors
+        self.FORMATS = {
+            logging.DEBUG: (self.yellow if self.use_colors else "") + self.format_str + (self.reset if self.use_colors else ""),
+            logging.INFO: (self.green if self.use_colors else "") + self.format_str + (self.reset if self.use_colors else ""),
+            logging.WARNING: (self.yellow if self.use_colors else "") + self.format_str + (self.reset if self.use_colors else ""),
+            logging.ERROR: (self.red if self.use_colors else "") + self.format_str + (self.reset if self.use_colors else ""),
+            logging.CRITICAL: (self.red if self.use_colors else "") + self.format_str + (self.reset if self.use_colors else "")
+        }
 
     def format(self, record):
-        message = super().format(record)
-        if not self.use_colors:
-            return message
+        log_fmt = self.FORMATS.get(record.levelno)
+        formatter = logging.Formatter(log_fmt, datefmt='%Y-%m-%d %H:%M:%S')
+        return formatter.format(record)
 
-        if record.levelno == logging.ERROR:
-            message = f"{COLOR_ERROR}{message}{COLOR_RESET}"
-        elif record.levelno == logging.WARNING:
-            message = f"{COLOR_WARNING}{message}{COLOR_RESET}"
-        elif record.levelno == logging.INFO:
-            message = f"{COLOR_INFO}{message}{COLOR_RESET}"
-        return message
+def setup_logging(log_file='', use_colors=True):
+    """Configure logging with colored console output and optional file logging.
+
+    Args:
+        log_file (str): Path to log file. If empty, file logging is disabled.
+        use_colors (bool): Whether to use colored output.
+    """
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+
+    # Remove any existing handlers
+    root_logger.handlers = []
+
+    # Console handler with color formatting
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(ColoredFormatter(use_colors=use_colors))
+    root_logger.addHandler(console_handler)
+
+    # File handler if log file is specified (never use colors in file)
+    if log_file:
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(ColoredFormatter(use_colors=False))
+        root_logger.addHandler(file_handler)
 
 def get_password(prompt: str) -> str:
     """
@@ -77,9 +100,13 @@ def get_password(prompt: str) -> str:
     """
     try:
         return getpass.getpass(prompt)
-    except (EOFError, getpass.GetPassWarning):
-        # Fall back to regular input if getpass fails
-        return input(prompt)
+    except:
+        print("Warning: Password input may be echoed.")
+        try:
+            return input(prompt)
+        except EOFError:
+            print("\nError: Password input is required. Please provide the password via --ssh-user-password")
+            sys.exit(1)
 
 def parse_arguments():
     """Parse command-line arguments with renamed parameters and default values."""
@@ -89,7 +116,7 @@ def parse_arguments():
         epilog=textwrap.dedent('''
             Examples:
               %(prog)s --host 192.168.1.1 --backup-user-public-key ~/.ssh/backup.pub
-              %(prog)s --host router.local --ssh-user admin --port 2222 --backup-user-public-key ./keys/backup.pub
+              %(prog)s --host router.local --ssh-user admin --ssh-port 2222 --backup-user-public-key ./keys/backup.pub
 
             Note: Strict host key checking is disabled by default for initial setup.
             ''')
@@ -99,7 +126,7 @@ def parse_arguments():
     parser.add_argument('--ssh-user', default='admin', help='Existing SSH username with privileges to create users and manage SSH keys. Default: admin')
     parser.add_argument('--ssh-user-password', help='Password for the SSH user. If not provided, will prompt for password')
     parser.add_argument('--ssh-user-private-key', help='Path to private key file for the SSH user')
-    parser.add_argument('--port', type=int, default=22, help='SSH port number. Default: 22')
+    parser.add_argument('--ssh-port', type=int, default=22, help='SSH port number. Default: 22')
     parser.add_argument('--backup-user', default='rosbackup', help='Username to create for backup operations. Default: rosbackup')
     parser.add_argument('--backup-user-password', help='Password for the backup user. If not specified, a random password will be generated')
     parser.add_argument('--backup-user-public-key', required=True, help='Path to public key file to install for the backup user')
@@ -117,45 +144,17 @@ def parse_arguments():
 
     return args
 
-def setup_logging(log_file='', use_colors=True):
-    """Configure logging with colored console output and optional file logging.
-    
+def generate_password(length=24):
+    """Generate a random password using only letters and numbers.
+
     Args:
-        log_file (str): Path to log file. If empty, file logging is disabled.
-        use_colors (bool): Whether to use colored output in console.
+        length (int): Length of the password to generate. Default is 24.
+
+    Returns:
+        str: Generated password containing only letters (mixed case) and numbers
     """
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-
-    # Remove any existing handlers
-    logger.handlers = []
-
-    # Console handler with optional colored output
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
-    ch_formatter = ColoredFormatter(use_colors=use_colors)
-    ch.setFormatter(ch_formatter)
-    logger.addHandler(ch)
-
-    # File handler with plain text, added only if log_file is specified
-    if log_file:
-        try:
-            fh = logging.FileHandler(log_file)
-            fh.setLevel(logging.DEBUG)
-            fh_formatter = ColoredFormatter(use_colors=False)  # Never use colors in file
-            fh.setFormatter(fh_formatter)
-            logger.addHandler(fh)
-            logging.info(f"Logging to file '{log_file}' enabled.")
-        except Exception as e:
-            logging.error(f"Failed to set up file logging at '{log_file}': {e}")
-            sys.exit(1)
-    else:
-        logging.debug("File logging not enabled.")
-
-def generate_random_password(length=24):
-    """Generate a random alphanumeric password of specified length."""
-    alphabet = string.ascii_letters + string.digits
-    return ''.join(secrets.choice(alphabet) for _ in range(length))
+    chars = string.ascii_letters + string.digits
+    return ''.join(random.choice(chars) for _ in range(length))
 
 def read_public_key(public_key_path):
     """Read the SSH public key from the specified file."""
@@ -269,35 +268,40 @@ def get_router_identity(ssh_client, ip):
         logging.warning("Failed to retrieve router identity. Using 'Unknown'.")
         return "Unknown"
 
-def create_backup_user(ssh_client, backup_username, backup_password, backup_group):
-    """
-    Create a new backup user on the RouterOS device.
+def create_backup_user(ssh_client, username, password=None, group='full'):
+    """Create a backup user on the RouterOS device.
 
     Args:
-        ssh_client (paramiko.SSHClient): Established SSH client.
-        backup_username (str): Username to create.
-        backup_password (str): Password for the backup user.
-        backup_group (str): User group to assign to the backup user.
+        ssh_client: Paramiko SSH client instance
+        username (str): Username to create
+        password (str, optional): Password for the user. If not provided, a random one will be generated
+        group (str): User group for the new user. Default is 'full'
 
     Returns:
-        bool: True if successful, False otherwise.
+        tuple: (success, password) where success is True if user was created successfully,
+               and password is the user's password (either provided or generated)
     """
     # Check if user already exists
-    check_command = f"/user/print where name=\"{backup_username}\""
-    output = execute_command(ssh_client, check_command)
-    if output:
-        logging.warning(f"User '{backup_username}' already exists on the router.")
-        return False  # User already exists
+    stdin, stdout, stderr = ssh_client.exec_command(f'/user print where name="{username}"')
+    if username in stdout.read().decode():
+        logging.warning(f"User '{username}' already exists on the router.")
+        return False, None
 
-    # Create the user with specified password and group
-    create_command = f"/user/add name=\"{backup_username}\" group={backup_group} password=\"{backup_password}\""
-    output = execute_command(ssh_client, create_command)
-    if output is not None:
-        logging.info(f"User '{backup_username}' created successfully with group '{backup_group}'.")
-        return True
-    else:
-        logging.error(f"Failed to create user '{backup_username}'.")
-        return False
+    # Generate password if not provided
+    if not password:
+        logging.info("No backup user password provided. A random password will be generated.")
+        password = generate_password()
+        logging.info(f"A random password with {len(password)} characters has been generated for the backup user.")
+
+    # Create the user with specified group
+    stdin, stdout, stderr = ssh_client.exec_command(f'/user add name="{username}" password="{password}" group="{group}"')
+    error = stderr.read().decode().strip()
+    if error:
+        logging.error(f"Failed to create user '{username}': {error}")
+        return False, None
+
+    logging.info(f"User '{username}' created successfully with group '{group}'")
+    return True, password
 
 def install_public_key(ssh_client, backup_username, public_key):
     """
@@ -353,7 +357,7 @@ def main():
     # Establish SSH connection
     ssh_client = create_ssh_client(
         ip=args.host,
-        port=args.port,
+        port=args.ssh_port,
         username=args.ssh_user,
         password=ssh_password,
         key_filepath=ssh_key_filepath
@@ -367,14 +371,8 @@ def main():
     router_identity = get_router_identity(ssh_client, args.host)
     logging.info(f"Attempting to create backup user on router '{router_identity}' at {args.host}")
 
-    # Determine backup user password
-    if args.backup_user_password:
-        backup_user_password = args.backup_user_password
-    else:
-        backup_user_password = generate_random_password()
-
     # Create the backup user
-    user_created = create_backup_user(ssh_client, args.backup_user, backup_user_password, args.backup_user_group)
+    user_created, backup_password = create_backup_user(ssh_client, args.backup_user, args.backup_user_password, args.backup_user_group)
 
     if user_created:
         # Install public key for the backup user
@@ -384,7 +382,7 @@ def main():
             if args.show_backup_credentials:
                 print("\nBackup User Credentials:")
                 print(f"Username: {args.backup_user}")
-                print(f"Password: {backup_user_password}\n")
+                print(f"Password: {backup_password}\n")
         else:
             logging.error(f"Failed to install SSH public key for user '{args.backup_user}' on router {args.host}.")
     else:
@@ -393,6 +391,7 @@ def main():
     # Close SSH connection
     ssh_client.close()
     logging.info("SSH connection closed.")
+    logging.info("Bootstrap process completed.")
 
 if __name__ == "__main__":
     main()

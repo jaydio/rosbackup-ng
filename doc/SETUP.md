@@ -16,7 +16,7 @@ cd rosbackup-ng
 
 2. Set up Python virtual environment (recommended)
 ```bash
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 ```
 
@@ -46,8 +46,41 @@ pip install -r requirements.txt
    ```
 
 3. Configure RouterOS devices for backup:
-   - Option 1: Use `bootstrap_router.py` to automatically configure devices
-   - Option 2: Manually set up SSH keys and user permissions
+   
+   Option 1: Use `bootstrap_router.py` to automatically configure devices (recommended)
+   ```bash
+   # Basic usage - will prompt for SSH password
+   python3 bootstrap_router.py --host 192.168.88.1 --backup-user-public-key ssh-keys/public/id_rosbackup.pub
+
+   # With password authentication
+   python3 bootstrap_router.py --host 192.168.88.1 \
+       --ssh-user admin --ssh-user-password yourpassword \
+       --backup-user-public-key ssh-keys/public/id_rosbackup.pub
+
+   # With SSH key authentication
+   python3 bootstrap_router.py --host 192.168.88.1 \
+       --ssh-user admin --ssh-user-private-key ~/.ssh/id_rsa \
+       --backup-user-public-key ssh-keys/public/id_rosbackup.pub
+
+   # Show generated credentials
+   python3 bootstrap_router.py --host 192.168.88.1 \
+       --backup-user-public-key ssh-keys/public/id_rosbackup.pub \
+       --show-backup-credentials
+   ```
+   
+   See [BOOTSTRAP.md](BOOTSTRAP.md) for detailed usage instructions.
+
+   Option 2: Manually set up SSH keys and user permissions
+   ```bash
+   # 1. Log into RouterOS device and create backup user
+   /user add name=rosbackup group=full password=<secure-password>
+
+   # 2. Add SSH public key for the backup user
+   /user ssh-keys import public-key-file=id_rosbackup.pub user=rosbackup
+
+   # 3. Verify SSH key was imported
+   /user ssh-keys print
+   ```
 
 4. Edit configuration files:
    - Update global settings in `config/global.yaml`
@@ -57,7 +90,7 @@ pip install -r requirements.txt
 
 Execute the backup script:
 ```bash
-python rosbackup.py
+python3 rosbackup.py
 ```
 
 ## Troubleshooting
