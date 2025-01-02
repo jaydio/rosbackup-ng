@@ -17,13 +17,11 @@ A robust Python-based utility for automating backups of multiple RouterOS device
 
 ## Directory Structure
 
+The project follows a modular structure for better organization and maintainability:
+
 ```
 .
 ├── backups/                        # Backup storage directory
-│   └── {identity}-{host}-ROS{ros_version}-{arch}/  # Router-specific backup directories
-│       ├── {identity}-{ros_version}-{arch}-{timestamp}.backup  # Binary backup
-│       ├── {identity}-{ros_version}-{arch}-{timestamp}.rsc     # Plaintext export
-│       └── {identity}-{ros_version}-{arch}-{timestamp}.INFO.txt # Router info
 ├── bootstrap_router.py             # Router setup utility
 ├── config/                         # Configuration files
 │   ├── global.yaml                 # Global settings (YAML, recommended)
@@ -48,6 +46,47 @@ A robust Python-based utility for automating backups of multiple RouterOS device
 ├── README.md                       # This file
 ├── requirements.txt                # Python dependencies
 └── rosbackup.py                    # Main script
+```
+
+## Backup File Organization
+
+The backup files are organized in a structured hierarchy that reflects the router's identity and specifications:
+
+```
+backups/
+└── {identity}-{host}-ROS{ros_version}-{arch}/    # Router-specific directory
+    ├── {identity}-{ros_version}-{arch}-{timestamp}.backup    # Binary backup
+    ├── {identity}-{ros_version}-{arch}-{timestamp}.rsc       # Plaintext export
+    └── {identity}-{ros_version}-{arch}-{timestamp}.INFO.txt  # Router info
+```
+
+### Naming Convention
+
+The backup files follow a standardized naming format that includes essential information about the router and backup:
+
+- **Directory Name**: `{identity}-{host}-ROS{ros_version}-{arch}`
+  - `identity`: Router's system identity (e.g., "HQ-ROUTER-01")
+  - `host`: IP address or hostname (e.g., "192.168.1.1")
+  - `ros_version`: RouterOS version (e.g., "7.10.2")
+  - `arch`: Router architecture (e.g., "arm", "x86_64")
+
+- **File Names**: `{identity}-{ros_version}-{arch}-{timestamp}.{ext}`
+  - `identity`: Same as directory
+  - `ros_version`: Same as directory
+  - `arch`: Same as directory
+  - `timestamp`: Backup creation time (format: DDMMYYYY-HHMMSS)
+  - `ext`: File extension indicating type:
+    - `.backup`: Binary backup file
+    - `.rsc`: Plaintext configuration export
+    - `.INFO.txt`: Router information and specifications
+
+Example:
+```
+backups/
+└── HQ-ROUTER-01-192.168.1.1-ROS7.10.2-arm/
+    ├── HQ-ROUTER-01-7.10.2-arm-02012025-143022.backup
+    ├── HQ-ROUTER-01-7.10.2-arm-02012025-143022.rsc
+    └── HQ-ROUTER-01-7.10.2-arm-02012025-143022.INFO.txt
 ```
 
 ## Details setup instructions
@@ -247,30 +286,6 @@ The following parameters can be overridden from global.yaml:
 - `backup_retention_days`: Set a router-specific retention period
 - `ssh_args`: Override any SSH connection parameters for this router
 
-Example configuration:
-```json
-{
-    "backup_path": "/path/to/backup/directory",
-    "backup_password": "default-backup-password",
-    "ssh_user": "admin",
-    "targets": [
-        {
-            "name": "Router1",
-            "host": "192.168.1.1",
-            "ssh_port": 22,
-            "ssh_user": "admin",
-            "private_key": "/path/to/ssh/key",
-            "backup_password": "router-specific-password",
-            "encrypted": true,
-            "enable_binary_backup": true,
-            "enable_plaintext_backup": true,
-            "keep_binary_backup": false,
-            "keep_plaintext_backup": false
-        }
-    ]
-}
-```
-
 ## Core Modules
 
 The application is now organized into core modules for better maintainability:
@@ -279,36 +294,6 @@ The application is now organized into core modules for better maintainability:
 - **notifications.py**: Handles notification system
 - **router_info.py**: Handles gathering and formatting router information
 - **ssh_utils.py**: Manages SSH connections and operations
-
-## File Naming Format
-
-All backup files follow a consistent naming format that includes essential router information:
-
-- **Directory Structure**: `{identity}-{host}-ROS{ros_version}-{arch}/`
-  - Example: `MYR1-192.168.1.1-ROS7.16.2-x86_64/`
-
-- **Binary Backups**: `{identity}-{ros_version}-{arch}-{timestamp}.backup`
-  - Example: `MYR1-7.16.2-x86_64-02012025-164736.backup`
-
-- **Plaintext Exports**: `{identity}-{ros_version}-{arch}-{timestamp}.rsc`
-  - Example: `MYR1-7.16.2-x86_64-02012025-164736.rsc`
-
-- **Info Files**: `{identity}-{ros_version}-{arch}-{timestamp}.INFO.txt`
-  - Example: `MYR1-7.16.2-x86_64-02012025-164736.INFO.txt`
-
-Where:
-- `{identity}`: Router's identity name
-- `{host}`: Router's IP address or hostname (only in directory name)
-- `{ros_version}`: RouterOS version (without "stable" suffix)
-- `{arch}`: Router's architecture
-- `{timestamp}`: Backup timestamp in DDMMYYYY-HHMMSS format
-
-This naming scheme ensures:
-- Consistent format across all backup types
-- No spaces in filenames
-- All relevant router information included
-- Clear file type identification through extensions
-- Easy sorting and filtering of backups
 
 ## Examples
 
