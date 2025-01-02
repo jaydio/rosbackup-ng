@@ -14,6 +14,10 @@ id_*
 *.key
 known_hosts
 
+# Config files - ignore actual configs but allow samples
+config/*.json
+!config/*.json.sample
+
 # Python virtual environment
 venv/
 __pycache__/
