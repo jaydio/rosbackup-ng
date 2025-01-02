@@ -10,6 +10,7 @@ A utility for automating the setup of backup users on RouterOS devices. This too
 - **Secure Password Handling**: Option to generate random passwords or use specified ones
 - **Interactive Mode**: Prompts for password if neither password nor key is provided
 - **Colored Logging**: Clear visual feedback with color-coded status messages
+- **Command Completion**: Bash completion support for all options and file paths
 
 ## Prerequisites
 
@@ -19,6 +20,16 @@ A utility for automating the setup of backup users on RouterOS devices. This too
 - SSH public key for the backup user
 
 ## Usage
+
+### Enable Command Completion
+
+For easier command-line usage, enable bash completion:
+
+```bash
+source scripts/rosbackup-completion.bash
+```
+
+This provides tab completion for all options and relevant file paths.
 
 ### Basic Usage
 
