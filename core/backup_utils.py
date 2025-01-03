@@ -13,6 +13,7 @@ from datetime import datetime
 import os
 from scp import SCPClient
 import time
+import re
 from .ssh_utils import SSHManager
 from .router_utils import RouterInfoManager
 from .logging_utils import LogManager
@@ -88,6 +89,32 @@ class BackupManager:
         self.router_info_manager = router_info_manager
         self.logger = logger or LogManager().system
 
+    def _clean_version_string(self, version: str) -> str:
+        """Clean RouterOS version string by removing (stable) suffix."""
+        # Remove (stable) or similar suffixes
+        version = re.sub(r'\s*\([^)]*\)', '', version)
+        # Remove any remaining spaces
+        version = version.strip()
+        return version
+
+    def _generate_backup_name(self, router_info: RouterInfo, timestamp: str, extension: str) -> str:
+        """
+        Generate backup filename from router info.
+
+        Args:
+            router_info: Router information dictionary
+            timestamp: Timestamp string
+            extension: File extension (e.g., 'backup' or 'rsc')
+
+        Returns:
+            Formatted backup filename
+        """
+        # Clean up version string
+        ros_version = self._clean_version_string(router_info['ros_version'])
+        # Generate name
+        router_name = f"{router_info['identity']}_{ros_version}_{router_info['architecture_name']}"
+        return f"{router_name}_{timestamp}.{extension}"
+
     def perform_binary_backup(
         self,
         ssh_client: paramiko.SSHClient,
@@ -135,10 +162,8 @@ class BackupManager:
             self.logger.info("[DRY RUN] Would perform binary backup")
             return True, Path(backup_dir) / f"dry_run_{timestamp}.backup"
 
-        # Generate backup file name based on router info, removing spaces
-        ros_version = router_info['ros_version'].replace(' ', '')
-        router_name = f"{router_info['identity']}-{ros_version}-{router_info['architecture_name']}"
-        backup_name = f"{router_name}-{timestamp}.backup"
+        # Generate backup file name
+        backup_name = self._generate_backup_name(router_info, timestamp, 'backup')
         remote_path = backup_name
         local_path = backup_dir / backup_name
 
@@ -260,10 +285,8 @@ class BackupManager:
                 self.logger.error("Export command produced no output")
                 return False, None
 
-            # Save export to file with router info in name, removing spaces
-            ros_version = router_info['ros_version'].replace(' ', '')
-            router_name = f"{router_info['identity']}-{ros_version}-{router_info['architecture_name']}"
-            backup_name = f"{router_name}-{timestamp}.rsc"
+            # Generate backup file name
+            backup_name = self._generate_backup_name(router_info, timestamp, 'rsc')
             backup_path = backup_dir / backup_name
             backup_path.write_text(stdout)
             self.logger.info(f"Plaintext backup saved as {backup_name}")
@@ -307,14 +330,12 @@ class BackupManager:
         Returns:
             bool: True if successful, False otherwise
 
-        File Naming:
-            The info file will be named using the format:
-            {identity}-{version}-{arch}-{timestamp}.INFO.txt
-            Example: MYR1-7.16.2-x86_64-02012025-164736.INFO.txt
-
         File Format:
-            The info file contains a header "Router Information:" followed by
-            formatted key-value pairs of router information.
+            The info file contains sections for different types of information:
+            - System Information
+            - Hardware Information
+            - System Resources
+            - License Information
         """
         if dry_run:
             self.logger.info(f"[DRY RUN] Would save router info to {info_file_path}")
@@ -322,10 +343,42 @@ class BackupManager:
 
         try:
             with open(info_file_path, 'w') as f:
-                f.write("Router Information:\n")
-                f.write("==================\n\n")
-                for key, value in router_info.items():
-                    f.write(f"{key.replace('_', ' ').title()}: {value}\n")
+                # System Information
+                f.write("System Information\n")
+                f.write("=================\n")
+                f.write(f"Name: {router_info.get('name', 'unknown')}\n")
+                f.write(f"RouterOS Version: {router_info.get('version', 'unknown')}\n")
+                f.write(f"Build Time: {router_info.get('build_time', 'unknown')}\n")
+                f.write(f"Uptime: {router_info.get('uptime', 'unknown')}\n\n")
+
+                # Hardware Information
+                f.write("Hardware Information\n")
+                f.write("===================\n")
+                f.write(f"Model: {router_info.get('model', 'unknown')}\n")
+                f.write(f"Serial Number: {router_info.get('serial_number', 'unknown')}\n")
+                f.write(f"Architecture: {router_info.get('architecture_name', 'unknown')}\n")
+                f.write(f"Platform: {router_info.get('platform', 'unknown')}\n")
+                f.write(f"CPU: {router_info.get('cpu', 'unknown')}\n")
+                f.write(f"CPU Count: {router_info.get('cpu_count', 'unknown')}\n")
+                f.write(f"CPU Frequency: {router_info.get('cpu_frequency', 'unknown')}\n\n")
+
+                # System Resources
+                f.write("System Resources\n")
+                f.write("===============\n")
+                f.write(f"Total Memory: {router_info.get('total_memory', 'unknown')}\n")
+                f.write(f"Free Memory: {router_info.get('free_memory', 'unknown')}\n")
+                f.write(f"Total Storage: {router_info.get('total_hdd_space', 'unknown')}\n")
+                f.write(f"Free Storage: {router_info.get('free_hdd_space', 'unknown')}\n")
+                f.write(f"CPU Load: {router_info.get('cpu_load', 'unknown')}\n")
+                f.write(f"Bad Blocks: {router_info.get('bad_blocks', 'unknown')}\n\n")
+
+                # License Information
+                f.write("License Information\n")
+                f.write("==================\n")
+                f.write(f"Software ID: {router_info.get('software_id', 'unknown')}\n")
+                f.write(f"Level: {router_info.get('nlevel', 'unknown')}\n")
+                f.write(f"Features: {router_info.get('features', 'unknown')}\n")
+
             return True
         except Exception as e:
             self.logger.error(f"Failed to save info file: {str(e)}")

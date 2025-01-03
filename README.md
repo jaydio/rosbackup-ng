@@ -61,23 +61,23 @@ The backup files are organized in a structured hierarchy that reflects the route
 
 ```
 backups/
-└── {identity}-{host}-ROS{ros_version}-{arch}/    # Router-specific directory
-    ├── {identity}-{ros_version}-{arch}-{timestamp}.backup    # Binary backup
-    ├── {identity}-{ros_version}-{arch}-{timestamp}.rsc       # Plaintext export
-    └── {identity}-{ros_version}-{arch}-{timestamp}.INFO.txt  # Router info
+└── {identity}_{host}_ROS{ros_version}_{arch}/    # Router-specific directory
+    ├── {identity}_{ros_version}_{arch}_{timestamp}.backup    # Binary backup
+    ├── {identity}_{ros_version}_{arch}_{timestamp}.rsc       # Plaintext export
+    └── {identity}_{ros_version}_{arch}_{timestamp}.INFO.txt  # Router info
 ```
 
 ### Naming Convention
 
 The backup files follow a standardized naming format that includes essential information about the router and backup:
 
-- **Directory Name**: `{identity}-{host}-ROS{ros_version}-{arch}`
+- **Directory Name**: `{identity}_{host}_ROS{ros_version}_{arch}`
   - `identity`: Router's system identity (e.g., "HQ-ROUTER-01")
   - `host`: IP address or hostname (e.g., "192.168.1.1")
   - `ros_version`: RouterOS version (e.g., "7.10.2")
   - `arch`: Router architecture (e.g., "arm", "x86_64")
 
-- **File Names**: `{identity}-{ros_version}-{arch}-{timestamp}.{ext}`
+- **File Names**: `{identity}_{ros_version}_{arch}_{timestamp}.{ext}`
   - `identity`: Same as directory
   - `ros_version`: Same as directory
   - `arch`: Same as directory
@@ -90,10 +90,10 @@ The backup files follow a standardized naming format that includes essential inf
 Example:
 ```
 backups/
-└── HQ-ROUTER-01-192.168.1.1-ROS7.10.2-arm/
-    ├── HQ-ROUTER-01-7.10.2-arm-02012025-143022.backup
-    ├── HQ-ROUTER-01-7.10.2-arm-02012025-143022.rsc
-    └── HQ-ROUTER-01-7.10.2-arm-02012025-143022.INFO.txt
+└── HQ-ROUTER-01_192.168.1.1_ROS7.10.2_arm/
+    ├── HQ-ROUTER-01_7.10.2_arm_02012025-143022.backup
+    ├── HQ-ROUTER-01_7.10.2_arm_02012025-143022.rsc
+    └── HQ-ROUTER-01_7.10.2_arm_02012025-143022.INFO.txt
 ```
 
 ## Details setup instructions
@@ -271,18 +271,18 @@ ssh:
 ```
 
 #### Performance Settings
-| Parameter | Type | Default | Required | Overridable | Description |
-|-----------|------|---------|----------|-------------|-------------|
-| `max_concurrent_backups` | integer | 5 | No | No | Maximum number of concurrent backups |
-| `parallel_execution` | boolean | true | No | No | Enable parallel backup processing |
+| Parameter | Type | Default | Required | Description |
+|-----------|------|---------|----------|-------------|
+| `max_concurrent_backups` | integer | 5 | No | Maximum number of concurrent backups |
+| `parallel_execution` | boolean | true | No | Enable parallel backup processing |
 
 #### Logging Settings
-| Parameter | Type | Default | Required | Overridable | Description |
-|-----------|------|---------|----------|-------------|-------------|
-| `log_file` | string | "./rosbackup.log" | No | No | Path to the log file |
-| `log_level` | string | "INFO" | No | No | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
-| `log_file_enabled` | boolean | false | No | No | Enable logging to file in addition to console |
-| `log_retention_days` | integer | 90 | No | No | Days to keep log files (-1 for infinite retention) |
+| Parameter | Type | Default | Required | Description |
+|-----------|------|---------|----------|-------------|
+| `log_file` | string | "./rosbackup.log" | No | Path to the log file |
+| `log_level` | string | "INFO" | No | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
+| `log_file_enabled` | boolean | false | No | Enable logging to file in addition to console |
+| `log_retention_days` | integer | 90 | No | Days to keep log files (-1 for infinite retention) |
 
 #### Notification Settings
 | Parameter | Type | Default | Required | Description |
@@ -306,11 +306,11 @@ ssh:
 
 ### Target Specific Configuration (targets.yaml)
 
-Each router in the `routers` array supports the following parameters:
+Each router in the `targets` array supports the following parameters:
 
 #### Example Configuration
 ```yaml
-routers:
+targets:
   - name: MYR1
     enabled: true
     host: 192.168.88.1

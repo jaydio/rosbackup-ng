@@ -98,6 +98,11 @@ class TargetConfig(TypedDict):
     backup_password: Optional[str]
 
 
+def get_timestamp() -> str:
+    """Get current timestamp in backup file format."""
+    return datetime.now().strftime("%d%m%Y-%H%M%S")
+
+
 def backup_target(
     target: Dict[str, Any],
     ssh_args: Dict[str, Any],
@@ -159,9 +164,9 @@ def backup_target(
             return False
 
         # Prepare backup directory
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        ros_version = target_info['ros_version'].split('.')[0]
-        backup_dir = backup_path / f"{target_info['identity']}-{target['host']}-ROS{ros_version}-{target_info['architecture_name']}"
+        timestamp = get_timestamp()
+        clean_version = backup_manager._clean_version_string(target_info['ros_version'])
+        backup_dir = backup_path / f"{target_info['identity']}_{target['host']}_ROS{clean_version}_{target_info['architecture_name']}"
         os.makedirs(backup_dir, exist_ok=True)
 
         success = True
@@ -202,7 +207,8 @@ def backup_target(
                 backup_files.append(plaintext_file)
 
         # Save target information
-        info_file = backup_dir / f"{target_info['identity']}-{ros_version}-{target_info['architecture_name']}-{timestamp}.INFO.txt"
+        clean_version = backup_manager._clean_version_string(target_info['ros_version'])
+        info_file = backup_dir / f"{target_info['identity']}_{clean_version}_{target_info['architecture_name']}_{timestamp}.INFO.txt"
         info_success = backup_manager.save_info_file(target_info, info_file, dry_run)
         success &= info_success
 

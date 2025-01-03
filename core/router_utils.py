@@ -15,17 +15,44 @@ from .logging_utils import LogManager
 
 class RouterInfo(TypedDict):
     """Router information dictionary type definition."""
+    # System Identity
     identity: str
+    name: str
+    
+    # System Resource
     model: str
-    ros_version: str
-    architecture_name: str
-    cpu_name: str
+    board_name: str
+    serial_number: str
+    firmware_type: str
+    factory_firmware: str
+    current_firmware: str
+    upgrade_firmware: str
+    
+    # System Resources
+    uptime: str
+    version: str
+    build_time: str
+    free_memory: str
+    total_memory: str
+    cpu: str
     cpu_count: str
     cpu_frequency: str
-    total_memory: str
-    free_memory: str
+    cpu_load: str
     free_hdd_space: str
-    license: str
+    total_hdd_space: str
+    write_sect_since_reboot: str
+    write_sect_total: str
+    bad_blocks: str
+    architecture_name: str
+    board_name: str
+    platform: str
+    
+    # License
+    software_id: str
+    upgradable_to: str
+    nlevel: str
+    features: str
+    ros_version: str
 
 
 class RouterInfoManager:
@@ -62,34 +89,75 @@ class RouterInfoManager:
             Dictionary containing router information
         """
         try:
-            # Get system resource info
-            stdout, stderr = self.ssh_manager.execute_command(ssh_client, "/system resource print")
-            if stderr:
-                self.logger.error(f"Error getting system resource info: {stderr}")
-                raise RuntimeError(f"Failed to get system resource info: {stderr}")
-
-            # Parse system resource output
-            resource_info = self._parse_mikrotik_output(stdout)
-
             # Get system identity
             stdout, stderr = self.ssh_manager.execute_command(ssh_client, "/system identity print")
             if stderr:
                 self.logger.error(f"Error getting system identity: {stderr}")
                 raise RuntimeError(f"Failed to get system identity: {stderr}")
-
-            # Parse system identity output
             identity_info = self._parse_mikrotik_output(stdout)
 
-            # Combine information
+            # Get system resource info
+            stdout, stderr = self.ssh_manager.execute_command(ssh_client, "/system resource print")
+            if stderr:
+                self.logger.error(f"Error getting system resource info: {stderr}")
+                raise RuntimeError(f"Failed to get system resource info: {stderr}")
+            resource_info = self._parse_mikrotik_output(stdout)
+
+            # Get routerboard info
+            stdout, stderr = self.ssh_manager.execute_command(ssh_client, "/system routerboard print")
+            if stderr:
+                self.logger.error(f"Error getting routerboard info: {stderr}")
+                raise RuntimeError(f"Failed to get routerboard info: {stderr}")
+            board_info = self._parse_mikrotik_output(stdout)
+
+            # Get license info
+            stdout, stderr = self.ssh_manager.execute_command(ssh_client, "/system license print")
+            if stderr:
+                self.logger.error(f"Error getting license info: {stderr}")
+                raise RuntimeError(f"Failed to get license info: {stderr}")
+            license_info = self._parse_mikrotik_output(stdout)
+
+            # Combine all information
             router_info = {
+                # System Identity
                 'identity': identity_info.get('name', 'unknown'),
-                'ros_version': resource_info.get('version', 'unknown'),
-                'architecture_name': resource_info.get('architecture-name', 'unknown'),
-                'board_name': resource_info.get('board-name', 'unknown'),
+                'name': identity_info.get('name', 'unknown'),
+                
+                # System Resource
+                'model': board_info.get('model', 'unknown'),
+                'board_name': board_info.get('board-name', 'unknown'),
+                'serial_number': board_info.get('serial-number', 'unknown'),
+                'firmware_type': board_info.get('firmware-type', 'unknown'),
+                'factory_firmware': board_info.get('factory-firmware', 'unknown'),
+                'current_firmware': board_info.get('current-firmware', 'unknown'),
+                'upgrade_firmware': board_info.get('upgrade-firmware', 'unknown'),
+                
+                # System Resources
                 'uptime': resource_info.get('uptime', 'unknown'),
-                'cpu_load': resource_info.get('cpu-load', 'unknown'),
+                'version': resource_info.get('version', 'unknown'),
+                'build_time': resource_info.get('build-time', 'unknown'),
+                'free_memory': resource_info.get('free-memory', 'unknown'),
                 'total_memory': resource_info.get('total-memory', 'unknown'),
-                'free_memory': resource_info.get('free-memory', 'unknown')
+                'cpu': resource_info.get('cpu', 'unknown'),
+                'cpu_count': resource_info.get('cpu-count', 'unknown'),
+                'cpu_frequency': resource_info.get('cpu-frequency', 'unknown'),
+                'cpu_load': resource_info.get('cpu-load', 'unknown'),
+                'free_hdd_space': resource_info.get('free-hdd-space', 'unknown'),
+                'total_hdd_space': resource_info.get('total-hdd-space', 'unknown'),
+                'write_sect_since_reboot': resource_info.get('write-sect-since-reboot', 'unknown'),
+                'write_sect_total': resource_info.get('write-sect-total', 'unknown'),
+                'bad_blocks': resource_info.get('bad-blocks', 'unknown'),
+                'architecture_name': resource_info.get('architecture-name', 'unknown'),
+                'platform': resource_info.get('platform', 'unknown'),
+                
+                # License
+                'software_id': license_info.get('software-id', 'unknown'),
+                'upgradable_to': license_info.get('upgradable-to', 'unknown'),
+                'nlevel': license_info.get('nlevel', 'unknown'),
+                'features': license_info.get('features', 'unknown'),
+                
+                # For compatibility
+                'ros_version': resource_info.get('version', 'unknown'),
             }
 
             return router_info
