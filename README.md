@@ -167,7 +167,7 @@ For detailed setup instructions and configuration guide, see:
 
 ## Configuration
 
-### Configuration Parameters
+### Global Configuration Parameters
 
 #### Backup Settings
 | Parameter | Type | Default | Required | Overridable | Description |
@@ -227,7 +227,7 @@ The `ssh.args` object supports the following parameters (all overridable per tar
 | `smtp.use_tls` | boolean | true | No | Enable TLS encryption |
 | `smtp.use_ssl` | boolean | false | No | Enable SSL encryption |
 
-### Router Configuration (targets.yaml)
+### Target Specific Configuration (targets.yaml)
 
 Each router in the `routers` array supports the following parameters:
 
