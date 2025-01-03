@@ -82,9 +82,9 @@ Enter password for user 'admin': ********
 2025-01-02 22:46:06 [INFO] Attempting to create backup user on router 'MYROUTER' at 192.168.88.1
 2025-01-02 22:46:06 [INFO] No backup user password provided. A random password will be generated.
 2025-01-02 22:46:06 [INFO] A random password with 24 characters has been generated for the backup user.
-2025-01-02 22:46:06 [INFO] User 'rosbackup' created successfully with group 'full'
-2025-01-02 22:46:06 [INFO] SSH public key installed for user 'rosbackup'.
-2025-01-02 22:46:06 [INFO] Backup user 'rosbackup' is set up successfully on router 192.168.88.1.
+2025-01-02 22:46:06 [INFO] User 'backup' created successfully with group 'full'
+2025-01-02 22:46:06 [INFO] SSH public key installed for user 'backup'.
+2025-01-02 22:46:06 [INFO] Backup user 'backup' is set up successfully on router 192.168.88.1.
 2025-01-02 22:46:06 [INFO] SSH connection closed.
 2025-01-02 22:46:06 [INFO] Bootstrap process completed.
 ```
@@ -130,30 +130,30 @@ Sample output with credentials:
 ```
 ...
 Backup User Credentials:
-Username: rosbackup
+Username: backup
 Password: Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8
 ...
 ```
 
 ## Command-Line Options
 
-| Option | Default | Required | Description |
-|--------|---------|----------|-------------|
-| `--host` | - | Yes | Hostname or IP address of the RouterOS device |
-| `--ssh-user` | admin | No | Username for SSH authentication |
-| `--ssh-user-password` | - | No* | Password for SSH authentication |
-| `--ssh-user-private-key` | - | No* | Path to private key for SSH authentication |
-| `--port` | 22 | No | SSH port number |
-| `--backup-user` | rosbackup | No | Username to create for backup operations |
-| `--backup-user-password` | - | No | Password for backup user (random if not specified) |
-| `--backup-user-public-key` | - | Yes | Path to public key file to install |
-| `--backup-user-group` | full | No | User group for the backup user |
-| `--show-backup-credentials` | false | No | Show generated credentials |
-| `--log-file` | - | No | Path to log file |
-| `--no-color` | false | No | Disable colored output |
-| `--dry-run` | false | No | Show what would be done without making changes |
+| Short | Long | Default | Required | Description |
+|-------|------|---------|----------|-------------|
+| `-H` | `--host` | - | Yes | RouterOS device IP address or hostname |
+| `-k` | `--backup-user-public-key` | - | Yes | Public key file for backup user authentication |
+| `-u` | `--ssh-user` | admin | No* | SSH username for initial connection |
+| `-P` | `--ssh-user-password` | - | No* | SSH password for initial connection |
+| `-i` | `--ssh-user-private-key` | - | No* | SSH private key for initial connection |
+| `-p` | `--ssh-port` | 22 | No | SSH port number |
+| `-b` | `--backup-user` | backup | No | Username for backup account |
+| `-B` | `--backup-user-password` | - | No | Password for backup user (auto-generated if not set) |
+| `-g` | `--backup-user-group` | full | No | User group for backup user |
+| `-s` | `--show-backup-credentials` | false | No | Display generated backup user credentials |
+| `-l` | `--log-file` | - | No | Path to log file (no file logging if not set) |
+| `-n` | `--no-color` | false | No | Disable colored output |
+| `-d` | `--dry-run` | false | No | Show what would be done without making changes |
 
-\* Either `--ssh-user-password` or `--ssh-user-private-key` must be provided, or the script will prompt for password.
+\* Either `-P`/`--ssh-user-password` or `-i`/`--ssh-user-private-key` must be provided, or the script will prompt for password.
 
 ## Important Notes
 
@@ -163,98 +163,36 @@ Password: Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8
 3. Generated passwords are 24 characters long with mixed case letters and numbers
 4. When a user already exists, the script will skip user creation and attempt to install the SSH key
 5. The script will prompt for password if neither `--ssh-user-password` nor `--ssh-user-private-key` is provided
-
-## Parameters
-
-| Parameter | Required | Default | Description |
-|-----------|----------|---------|-------------|
-| `--host` | Yes | - | RouterOS device IP address |
-| `--port` | No | 22 | SSH port number |
-| `--ssh-user` | No | admin | Username for initial SSH connection |
-| `--ssh-user-password` | No | - | Password for SSH user (will prompt if not provided) |
-| `--ssh-user-private-key` | No | - | Private key path for SSH user authentication |
-| `--backup-user` | No | rosbackup | Username to create for backups |
-| `--backup-user-password` | No | - | Password for backup user (random if not provided) |
-| `--backup-user-public-key` | Yes | - | Public key path for backup user authentication |
-| `--backup-user-group` | No | full | RouterOS user group for backup user (must have write permission for binary backups) |
-| `--show-backup-credentials` | No | false | Display backup user credentials after setup |
-| `--log-file` | No | - | Path to log file (console only if not provided) |
-| `--no-color` | No | false | Disable colored output |
-
-## Command Line Options
-
-```
-Usage: bootstrap_router.py [OPTIONS]
-
-Required Options:
-  --host HOST                  Hostname or IP address of the target RouterOS device
-  --backup-user-public-key PATH  Path to SSH public key for backup user
-
-Authentication Options (one required):
-  --ssh-user-password PASSWORD   Password for existing SSH user
-  --ssh-user-private-key PATH    Path to SSH private key for existing user
-
-Optional Settings:
-  --ssh-user USER               Existing SSH username [default: admin]
-  --port PORT                   SSH port [default: 22]
-  --backup-user USER            Username to create [default: rosbackup]
-  --backup-user-password PASS   Password for backup user [default: random]
-  --backup-user-group GROUP     User group for backup user [default: full]
-  --show-backup-credentials     Show backup user credentials after setup
-  --log-file PATH              Path to log file [default: no file logging]
-  --no-color                   Disable colored output
-  --dry-run                    Show what would be done without making changes
-```
-
-### Examples
-
-1. Basic usage with password authentication:
-```bash
-python3 bootstrap_router.py --host 192.168.1.1 \
-    --ssh-user admin --ssh-user-password adminpass \
-    --backup-user-public-key /path/to/backup_key.pub
-```
-
-2. Using SSH key authentication and custom backup user:
-```bash
-python3 bootstrap_router.py --host 192.168.1.1 \
-    --ssh-user admin --ssh-user-private-key /path/to/admin_key \
-    --backup-user mybackup --backup-user-public-key /path/to/backup_key.pub \
-    --backup-user-group read
-```
-
-3. With logging and no colored output:
-```bash
-python3 bootstrap_router.py --host 192.168.1.1 \
-    --backup-user-public-key /path/to/backup_key.pub \
-    --log-file bootstrap.log --no-color
-```
-
-## Security Notes
-
-1. The backup user is created with the specified group permissions (default: full)
-   > **Note**: The user group MUST have write permission for binary backups to work. The 'full' group is recommended as it ensures all backup types will function correctly.
-2. SSH keys are recommended over password authentication
-3. Generated passwords are 24 characters long with mixed case, numbers, and symbols
-4. Sensitive information is only displayed when --show-backup-credentials is used
-5. Private keys and passwords are never logged to files
+6. Private keys and passwords are never logged to files
 
 ## Troubleshooting
 
 ### SSH Connection Failed
-- Verify SSH service is enabled on RouterOS
-- Check IP address and port number
-- Ensure admin credentials are correct
-- Verify network connectivity
 
-### Permission Denied
-- Verify admin user has sufficient privileges
-- Check if the user group exists
-- Ensure private key permissions are correct (0600)
+1. Verify SSH service is enabled on the router:
+   ```
+   /ip service print
+   ```
+   Enable if needed:
+   ```
+   /ip service enable ssh
+   ```
 
-### Public Key Installation Failed
-- Verify the public key file exists and is readable
-- Check the public key format is valid
-- Ensure sufficient disk space on RouterOS
+2. Check SSH port (default: 22):
+   ```
+   /ip service get ssh port
+   ```
 
-For detailed configuration options and parameters, refer to README.md
+3. Verify firewall rules allow SSH access
+
+4. Test SSH connectivity:
+   ```bash
+   ssh admin@192.168.1.1 -p 22
+   ```
+
+### Authentication Failed
+
+1. Verify username and password/key are correct
+2. Check if the user has sufficient permissions
+3. Ensure SSH keys are in the correct format
+4. Try interactive password authentication first

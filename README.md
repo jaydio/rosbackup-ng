@@ -157,13 +157,13 @@ For detailed setup instructions and configuration guide, see:
 
 ## Command-Line Options
 
-| Option | Default | Required | Description |
-|--------|---------|----------|-------------|
-| `--config-dir` | "./config" | No | Directory containing configuration files |
-| `--log-file` | None | No | Override log file path. Only used if `log_file_enabled` is true |
-| `--log-level` | "INFO" | No | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
-| `--dry-run` | false | No | Simulate operations without making changes |
-| `--no-color` | false | No | Disable colored output |
+| Short | Long | Default | Required | Description |
+|-------|------|---------|----------|-------------|
+| `-c` | `--config-dir` | "./config" | No | Directory containing configuration files |
+| `-l` | `--log-file` | None | No | Override log file path. Only used if `log_file_enabled` is true |
+| `-L` | `--log-level` | "INFO" | No | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
+| `-d` | `--dry-run` | false | No | Simulate operations without making changes |
+| `-n` | `--no-color` | false | No | Disable colored output |
 
 ## Configuration
 
@@ -304,7 +304,7 @@ routers:
     ssh_port: 22
     ssh_user: rosbackup
     private_key: ./ssh-keys/private/id_rosbackup
-    encrypted: false                   # Use global backup settings
+    encrypted: false                   # Do not encrypt backups
     enable_binary_backup: true
     enable_plaintext_backup: false     # Skip plaintext backups
 ```
