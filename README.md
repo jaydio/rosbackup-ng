@@ -190,7 +190,7 @@ ssh:
     compress: true
     auth_timeout: 30
     channel_timeout: 30
-    disabled_algorithms:  # Dict of algorithms to disable (see: https://docs.paramiko.org/en/stable/api/transport.html#paramiko.transport.Transport.disabled_algorithms)
+    disabled_algorithms:
       pubkeys: ["rsa-sha1"]
     keepalive_interval: 60
     keepalive_countmax: 3
@@ -246,7 +246,7 @@ smtp:
 | `ssh.args.compress` | boolean | false | No | No | Enable transport layer compression |
 | `ssh.args.auth_timeout` | integer | 30 | No | No | Authentication response timeout |
 | `ssh.args.channel_timeout` | integer | 30 | No | No | Channel open timeout |
-| `ssh.args.disabled_algorithms` | object | {} | No | No | Dict of algorithms to disable |
+| `ssh.args.disabled_algorithms` | object | {} | No | No | Dict of algorithms to disable (see [here](https://docs.paramiko.org/en/stable/api/transport.html#paramiko.transport.Transport.disabled_algorithms) for details )|
 | `ssh.args.keepalive_interval` | integer | 60 | No | No | Seconds between keepalive packets |
 | `ssh.args.keepalive_countmax` | integer | 3 | No | No | Max keepalive failures before disconnect |
 
