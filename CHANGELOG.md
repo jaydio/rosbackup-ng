@@ -2,15 +2,22 @@
 
 All notable changes to rosbackup-ng.
 
+## [0.1.1] - 2025-01-03
+
+### Improved
+- Enhanced type hints with TypedDict definitions across all core modules
+- Improved documentation with error handling details and security notes
+- Better help output for CLI scripts with practical examples
+- Clearer setup and configuration instructions
+
 ## [0.1.0] - 2025-01-03
 
-Initial release of rosbackup-ng with:
+### Added
+- Initial release of rosbackup-ng
 - Binary and plaintext backup support
-- Parallel execution
+- Parallel execution for multiple devices
 - SSH key-based authentication
-- Backup encryption (router side)
-- Retention management
+- Encrypted backups
 - Email notifications
-- Dry-run mode
-- Bootstrap tool
-- YAML configuration
+- Backup retention management
+- Bootstrap script for router setup
