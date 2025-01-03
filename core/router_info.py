@@ -107,6 +107,20 @@ class RouterInfoManager:
                 info["ros_version"] = version_match.group(1)
                 info["ros_channel"] = version_match.group(2) or "stable"
 
+        # Set architecture name based on architecture field
+        if "architecture" in info:
+            arch = info["architecture"].lower()
+            if "arm" in arch:
+                info["architecture_name"] = "arm64" if "64" in arch else "arm"
+            elif "mips" in arch:
+                info["architecture_name"] = "mipsbe"
+            elif "x86" in arch:
+                info["architecture_name"] = "x86_64" if "64" in arch else "x86"
+            elif "tile" in arch:
+                info["architecture_name"] = "tile"
+            else:
+                info["architecture_name"] = "x86_64"  # Default to most common
+
         return info
 
     def _parse_system_identity(self, output: str) -> Dict[str, Any]:
