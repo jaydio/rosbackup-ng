@@ -19,9 +19,9 @@ parallel_execution: true
 max_parallel_backups: 5
 
 # Logging Settings
+log_file_enabled: false
 log_file: ./rosbackup.log
 log_level: INFO
-enable_file_logging: false
 log_retention_days: 90
 
 # Notification Settings

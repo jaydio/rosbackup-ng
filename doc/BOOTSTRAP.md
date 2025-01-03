@@ -19,6 +19,30 @@ A utility for automating the setup of backup users on RouterOS devices. This too
 - Administrative access to the RouterOS device
 - SSH public key for the backup user
 
+## Configuration
+
+The bootstrap tool will use SSH settings from `config/global.yaml` if present. This includes:
+- Connection timeouts (default: 30 seconds)
+- Authentication timeouts (default: 30 seconds)
+- Known hosts handling:
+  - `known_hosts_file`: Path to SSH known_hosts file
+  - `add_target_host_key`: Whether to automatically add target host keys
+- SSH arguments:
+  - `look_for_keys`: Search for discoverable private key files
+  - `allow_agent`: Allow connecting to ssh-agent
+
+If no global configuration is found, it will use default settings:
+```yaml
+ssh:
+  timeout: 30
+  auth_timeout: 30
+  known_hosts_file: null
+  add_target_host_key: true
+  args:
+    look_for_keys: false
+    allow_agent: false
+```
+
 ## Usage
 
 ### Enable Command Completion

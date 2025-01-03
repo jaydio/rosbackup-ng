@@ -1,6 +1,71 @@
 #!/usr/bin/env python3
 """
-rosbackup.py - A Python3 script for backing up multiple RouterOS devices via SSH.
+rosbackup.py - Automated RouterOS Backup Tool
+
+This script performs automated backups of RouterOS devices with features:
+- Binary (.backup) and plaintext (.rsc) backups
+- Parallel execution for multiple devices
+- SSH key-based authentication
+- Encrypted backups
+- Email notifications
+- Backup retention management
+
+Usage:
+    python3 rosbackup.py [OPTIONS]
+
+Required Options:
+    --config-dir DIR               Directory containing configuration files
+    --log-file FILE               Path to log file [default: no file logging]
+    --log-level LEVEL             Logging level (DEBUG,INFO,WARNING,ERROR) [default: INFO]
+    --no-color                    Disable colored output
+
+Optional Settings:
+    --dry-run                     Simulate operations without making changes
+
+Configuration File (YAML):
+    global:
+      ssh:
+        timeout: 30                # SSH connection timeout in seconds
+        auth_timeout: 30           # SSH authentication timeout in seconds
+        known_hosts_file: ~/.ssh/known_hosts
+        add_target_host_key: true  # Auto-add unknown host keys
+      
+      backup:
+        keep_binary_backup: false    # Keep binary backup on router
+        keep_plaintext_backup: false # Keep plaintext backup on router
+        encrypted: true             # Encrypt binary backups
+      
+      notification:
+        smtp:
+          enabled: false
+          host: smtp.example.com
+          port: 587
+          username: user@example.com
+          password: password
+          from_addr: user@example.com
+          to_addrs: [admin@example.com]
+          use_tls: true
+
+    routers:
+      - name: Router1
+        host: 192.168.1.1
+        port: 22
+        username: backup
+        private_key: ~/.ssh/backup_key
+
+Examples:
+    # Basic usage:
+    python3 rosbackup.py --config-dir config
+
+    # Dry run with debug logging:
+    python3 rosbackup.py --config-dir config --dry-run --log-level DEBUG --log-file /var/log/rosbackup.log
+
+Notes:
+    - The script requires Python 3.6 or later
+    - SSH keys must be unencrypted
+    - Backup paths are auto-created if they don't exist
+    - Log files are rotated automatically (max 5 files of 1MB each)
+    - Use --dry-run to validate configuration without making changes
 """
 
 import os

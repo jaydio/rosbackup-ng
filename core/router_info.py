@@ -1,38 +1,68 @@
 """
 RouterOS device information gathering utilities.
+
+This module provides functionality to gather system information from RouterOS devices,
+including hardware specifications, resource usage, and access validation.
 """
 
 import paramiko
-from typing import Dict, Optional
+from typing import Dict, Optional, TypedDict, Literal
 import logging
 from .ssh_utils import SSHManager
 
 
-class RouterInfoManager:
-    """Manages RouterOS device information gathering operations."""
+class RouterInfo(TypedDict):
+    """Router information dictionary type definition."""
+    identity: str
+    model: str
+    ros_version: str
+    architecture_name: str
+    cpu_name: str
+    cpu_count: str
+    cpu_frequency: str
+    total_memory: str
+    free_memory: str
+    free_hdd_space: str
+    license: str
 
-    def __init__(self, ssh_manager: SSHManager):
+
+class RouterInfoManager:
+    """
+    Manages RouterOS device information gathering operations.
+    
+    This class provides methods to retrieve system information,
+    validate access permissions, and check file sizes on RouterOS devices.
+    
+    Attributes:
+        ssh_manager (SSHManager): SSH manager for command execution
+        logger (logging.Logger): Logger instance for this class
+    """
+
+    def __init__(self, ssh_manager: SSHManager) -> None:
         """
         Initialize RouterInfo manager.
 
         Args:
-            ssh_manager (SSHManager): SSH manager instance for executing commands
+            ssh_manager: SSH manager instance for executing commands
         """
         self.ssh_manager = ssh_manager
         self.logger = logging.getLogger(__name__)
 
-    def get_router_info(self, ssh_client: paramiko.SSHClient) -> Dict[str, str]:
+    def get_router_info(self, ssh_client: paramiko.SSHClient) -> RouterInfo:
         """
         Retrieve comprehensive router information.
 
+        Gathers system information including hardware specifications,
+        resource usage, and license details using RouterOS commands.
+
         Args:
-            ssh_client (paramiko.SSHClient): Connected SSH client
+            ssh_client: Connected SSH client to the router
 
         Returns:
-            Dict[str, str]: Dictionary containing router information with the following keys:
+            Dictionary containing router information with keys:
                 - identity: Router's identity name
                 - model: Router's model name
-                - ros_version: RouterOS version (stripped of "(stable)" suffix)
+                - ros_version: RouterOS version (no "stable" suffix)
                 - architecture_name: Router's architecture
                 - cpu_name: CPU model name
                 - cpu_count: Number of CPU cores
@@ -43,8 +73,13 @@ class RouterInfoManager:
                 - license: RouterOS license level
 
         Note:
-            The version string is cleaned by removing any "(stable)" suffix and spaces.
+            Version string is cleaned by removing "(stable)" suffix.
             Example: "7.16.2 (stable)" becomes "7.16.2"
+
+        Error Handling:
+            - Returns "Unknown" for failed command executions
+            - Logs debug information for troubleshooting
+            - Handles empty or invalid command outputs
         """
         info = {}
         commands = {
@@ -75,12 +110,20 @@ class RouterInfoManager:
         """
         Get the size of a backup file on the router.
 
+        Uses RouterOS file system commands to retrieve the size
+        of a specified backup file.
+
         Args:
-            ssh_client (paramiko.SSHClient): Connected SSH client
-            backup_file (str): Backup file path
+            ssh_client: Connected SSH client to the router
+            backup_file: Name or path of the backup file
 
         Returns:
-            Optional[int]: File size in bytes or None if not found
+            File size in bytes if found and readable, None otherwise
+
+        Error Handling:
+            - Returns None if file not found
+            - Handles invalid size values
+            - Logs errors for troubleshooting
         """
         stdout, _ = self.ssh_manager.execute_command(
             ssh_client, 
@@ -96,11 +139,21 @@ class RouterInfoManager:
         """
         Validate that we have sufficient access rights on the router.
 
+        Checks if the current user has necessary permissions for:
+        - Reading system resources
+        - Accessing the file system
+        - Creating and reading backup files
+
         Args:
-            ssh_client (paramiko.SSHClient): Connected SSH client
+            ssh_client: Connected SSH client to the router
 
         Returns:
-            bool: True if we have sufficient access, False otherwise
+            True if we have sufficient access, False otherwise
+
+        Error Handling:
+            - Logs specific permission issues
+            - Verifies multiple access types
+            - Returns False on any permission failure
         """
         # Check if we can read system resources
         stdout, _ = self.ssh_manager.execute_command(

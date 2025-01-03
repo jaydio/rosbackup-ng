@@ -2,18 +2,25 @@
 
 A robust Python-based utility for automating backups of multiple RouterOS devices via SSH. This tool supports both binary and plaintext backups, with features for backup retention management, parallel execution, and dry-run capabilities.
 
-## Features
+## Showcase
 
-- **Multiple Backup Types**: Supports both binary (.backup) and plaintext (.rsc) backups
-- **Dry-Run Mode**: Safely simulate backup operations without making changes
-- **Parallel Processing**: Efficiently backs up multiple devices simultaneously
-- **Command-Line Completion**: Bash completion support for all options
-- **Modular Architecture**: Well-organized core modules for better maintainability
-- **Secure**: Uses SSH key-based authentication
-- **Informative**: Generates detailed info files containing router specifications
-- **Notification Support**: Integrated notification system for backup status updates
-- **Consistent Naming**: All backup files follow a standardized naming format
-- **Flexible Configuration**: Supports YAML configuration format
+![Demo GIF](demo.gif)
+
+## Overview
+
+- **Simplified setup**: Uses a Python virtual environment
+- **Production tested**: Fully documented and tested in production
+- **Enhanced insights**: Actionable error messages and color-coded standard output
+- **Comprehensive logging**: Extensive logging facilities with multiple log levels
+- **Effortless onboarding**: Comprehensive README, setup guide, and inline docstrings
+- **High-speed performance**: Supports parallel SSH connections (back up 500 devices in under 1 minute!)
+- **Flexible configuration**: Global YAML configuration with customizable per-target overrides
+- **Versatile backups**: Selectively creates binary and plaintext (RouterScript export) backups
+- **Built-in notifications**: Supports email (with Telegram, Slack/Mattermost, NTFY, and webhooks coming soon)
+- **Batteries included**: Bootstrap script to deploy backup user and SSH public keys on target devices
+- **Improved CLI**: Command-line auto-completion for Bash and ZSH
+- **Safe testing**: Includes a dry-run mode to test configurations before backup runs 
+- **…and much more!** 🚀
 
 ## Directory Structure
 
@@ -99,9 +106,12 @@ For detailed setup instructions and configuration guide, see:
 
 1. Ensure Python 3.6 or higher is installed
 
-2. Set up Python virtual environment (recommended)
+2. Set up Python virtual environment
    ```bash
+   # Create virtual environment (only needed once)
    python3 -m venv venv
+
+   # Activate the virtual environment (needed each time you start a new shell)
    source venv/bin/activate
    ```
 
@@ -147,103 +157,105 @@ For detailed setup instructions and configuration guide, see:
 
 ## Command-Line Options
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--config-dir` | "config" | Directory containing configuration files |
-| `--log-file` | None | Log file path (optional) |
-| `--log-level` | "INFO" | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
-| `--dry-run` | false | Simulate operations without making changes |
-| `--no-color` | false | Disable colored output |
+| Option | Default | Required | Description |
+|--------|---------|----------|-------------|
+| `--config-dir` | "./config" | No | Directory containing configuration files |
+| `--log-file` | None | No | Override log file path. Only used if `log_file_enabled` is true |
+| `--log-level` | "INFO" | No | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
+| `--dry-run` | false | No | Simulate operations without making changes |
+| `--no-color` | false | No | Disable colored output |
 
 ## Configuration
 
 ### Configuration Parameters
 
 #### Backup Settings
-| Parameter | Type | Default | Overridable | Description |
-|-----------|------|---------|-------------|-------------|
-| `backup_path` | string | "backups" | No | Base directory for storing all router backups |
-| `backup_retention_days` | integer | 90 | Yes | Days to keep backups (-1 for infinite retention) |
-| `backup_password` | string | - | Yes | Default password for encrypted backups |
-
-#### Performance Settings
-| Parameter | Type | Default | Overridable | Description |
-|-----------|------|---------|-------------|-------------|
-| `max_concurrent_backups` | integer | 5 | No | Maximum number of concurrent backups |
-| `parallel_execution` | boolean | true | No | Enable parallel backup processing |
-
-#### Logging Settings
-| Parameter | Type | Default | Overridable | Description |
-|-----------|------|---------|-------------|-------------|
-| `log_file` | string | "./rosbackup.log" | No | Path to the log file |
-| `log_level` | string | "INFO" | No | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
-| `enable_file_logging` | boolean | false | No | Enable logging to file in addition to console |
-| `log_retention_days` | integer | 90 | No | Days to keep log files (-1 for infinite retention) |
+| Parameter | Type | Default | Required | Overridable | Description |
+|-----------|------|---------|----------|-------------|-------------|
+| `backup_path_parent` | string | "backups" | No | No | Base directory for storing all router backups |
+| `backup_retention_days` | integer | 90 | Yes | Yes | Days to keep backups (-1 for infinite retention) |
+| `backup_password` | string | - | Yes | Yes | Default password for encrypted backups |
 
 #### SSH Settings
-| Parameter | Type | Default | Overridable | Description |
-|-----------|------|---------|-------------|-------------|
-| `ssh_user` | string | "rosbackup" | Yes | Default SSH username |
-| `ssh_args` | object | {} | Yes | SSH connection arguments |
+| Parameter | Type | Default | Required | Overridable | Description |
+|-----------|------|---------|----------|-------------|-------------|
+| `ssh.user` | string | "rosbackup" | No | Yes | Default SSH username |
+| `ssh.timeout` | integer | 30 | No | Yes | Connection timeout in seconds |
+| `ssh.auth_timeout` | integer | 30 | No | Yes | Authentication timeout in seconds |
+| `ssh.known_hosts_file` | string | null | No | Yes | Optional path to known_hosts file |
+| `ssh.add_target_host_key` | boolean | true | No | Yes | Whether to automatically add target host keys |
+| `ssh.args` | object | {} | No | Yes | SSH connection arguments |
 
-The `ssh_args` object supports the following parameters (all overridable per target):
+The `ssh.args` object supports the following parameters (all overridable per target):
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `look_for_keys` | boolean | false | Search for discoverable private key files in ~/.ssh/ |
-| `allow_agent` | boolean | false | Allow connecting to ssh-agent |
-| `timeout` | integer | 10 | Connection timeout in seconds |
-| `banner_timeout` | integer | 10 | Banner timeout in seconds |
-| `auth_timeout` | integer | 10 | Authentication timeout in seconds |
+| Parameter | Type | Default | Required | Description |
+|-----------|------|---------|----------|-------------|
+| `look_for_keys` | boolean | false | No | Search for discoverable private key files in ~/.ssh/ |
+| `allow_agent` | boolean | false | No | Allow connecting to ssh-agent |
+
+#### Performance Settings
+| Parameter | Type | Default | Required | Overridable | Description |
+|-----------|------|---------|----------|-------------|-------------|
+| `max_concurrent_backups` | integer | 5 | No | No | Maximum number of concurrent backups |
+| `parallel_execution` | boolean | true | No | No | Enable parallel backup processing |
+
+#### Logging Settings
+| Parameter | Type | Default | Required | Overridable | Description |
+|-----------|------|---------|----------|-------------|-------------|
+| `log_file` | string | "./rosbackup.log" | No | No | Path to the log file |
+| `log_level` | string | "INFO" | No | No | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
+| `log_file_enabled` | boolean | false | No | No | Enable logging to file in addition to console |
+| `log_retention_days` | integer | 90 | No | No | Days to keep log files (-1 for infinite retention) |
 
 #### Notification Settings
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `notifications_enabled` | boolean | false | Master switch for all notifications |
-| `notify_on_failed_backups` | boolean | true | Send notifications for failed backups |
-| `notify_on_successful_backups` | boolean | false | Send notifications for successful backups |
+| Parameter | Type | Default | Required | Description |
+|-----------|------|---------|----------|-------------|
+| `notifications_enabled` | boolean | false | No | Master switch for all notifications |
+| `notify_on_failed_backups` | boolean | true | No | Send notifications for failed backups |
+| `notify_on_successful_backups` | boolean | false | No | Send notifications for successful backups |
 
 #### SMTP Settings
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `smtp.enabled` | boolean | false | Enable SMTP email notifications |
-| `smtp.host` | string | - | SMTP server hostname |
-| `smtp.port` | integer | 587 | SMTP server port |
-| `smtp.username` | string | - | SMTP authentication username |
-| `smtp.password` | string | - | SMTP authentication password |
-| `smtp.from_email` | string | - | Sender email address |
-| `smtp.to_emails` | array | - | List of recipient email addresses |
-| `smtp.use_tls` | boolean | true | Enable TLS encryption |
-| `smtp.use_ssl` | boolean | false | Enable SSL encryption |
+| Parameter | Type | Default | Required | Description |
+|-----------|------|---------|----------|-------------|
+| `smtp.enabled` | boolean | false | No | Enable SMTP email notifications |
+| `smtp.host` | string | - | Yes* | SMTP server hostname |
+| `smtp.port` | integer | 587 | No | SMTP server port |
+| `smtp.username` | string | - | Yes* | SMTP authentication username |
+| `smtp.password` | string | - | Yes* | SMTP authentication password |
+| `smtp.from_email` | string | - | Yes* | Sender email address |
+| `smtp.to_emails` | array | - | Yes* | List of recipient email addresses |
+| `smtp.use_tls` | boolean | true | No | Enable TLS encryption |
+| `smtp.use_ssl` | boolean | false | No | Enable SSL encryption |
 
 ### Router Configuration (targets.yaml)
 
 Each router in the `routers` array supports the following parameters:
 
-| Parameter | Type | Default | Source | Description |
-|-----------|------|---------|---------|-------------|
-| `name` | string | Required | - | Unique identifier for the router |
-| `host` | string | Required | - | Router's hostname or IP address |
-| `ssh_port` | integer | 22 | - | SSH port number |
-| `ssh_user` | string | Required | - | SSH username |
-| `private_key` | string | Required | - | Path to SSH private key file |
-| `encrypted` | boolean | true | - | Enable backup encryption |
-| `enable_binary_backup` | boolean | true | - | Enable binary backup creation |
-| `enable_plaintext_backup` | boolean | true | - | Enable plaintext backup creation |
-| `keep_binary_backup` | boolean | false | - | Keep binary backup file on router |
-| `keep_plaintext_backup` | boolean | false | - | Keep plaintext backup file on router |
-| `backup_password` | string | - | global.yaml | Override global backup password |
-| `backup_retention_days` | integer | - | global.yaml | Override global backup retention period |
-| `ssh_args` | object | - | global.yaml | Override global SSH arguments |
+| Parameter | Type | Default | Required | Description |
+|-----------|------|---------|----------|-------------|
+| `name` | string | - | Yes | Unique identifier for the router |
+| `enabled` | boolean | true | No | Whether this router is enabled for backup |
+| `host` | string | - | Yes | Router's hostname or IP address |
+| `ssh_port` | integer | 22 | No | SSH port number |
+| `ssh_user` | string | Global | No | SSH username |
+| `private_key` | string | - | Yes | Path to SSH private key file |
+| `encrypted` | boolean | false | No | Enable backup encryption |
+| `enable_binary_backup` | boolean | true | No | Enable binary backup creation |
+| `enable_plaintext_backup` | boolean | true | No | Enable plaintext backup creation |
+| `keep_binary_backup` | boolean | false | No | Keep binary backup file on router |
+| `keep_plaintext_backup` | boolean | false | No | Keep plaintext backup file on router |
+| `backup_password` | string | Global | No | Override global backup password |
+| `backup_retention_days` | integer | Global | No | Override global backup retention period |
+| `ssh_args` | object | Global | No | Override global SSH arguments |
 
-The following parameters can be overridden from global.yaml:
+The following global parameters can be overridden on a per target basis:
 - `backup_password`: Set a router-specific backup password
 - `backup_retention_days`: Set a router-specific retention period
 - `ssh_args`: Override any SSH connection parameters for this router
 
 ## Core Modules
 
-The application is now organized into core modules for better maintainability:
+This script is organized into core modules for better maintainability:
 
 - **backup_operations.py**: Manages backup operations
 - **notifications.py**: Handles notification system
@@ -272,7 +284,7 @@ python3 rosbackup.py --no-color
 
 ## ROADMAP
 
-The following features are planned for future releases:
+The following features are planned for future releases.
 
 ### Notification Channels
 - Telegram integration for backup status notifications
@@ -281,13 +293,21 @@ The following features are planned for future releases:
 - Generic webhook support for custom integrations
 - [...]
 
-### Enhanced Backup & Restore
-- Certificate store export functionality
-- Remote restore capability including certificate store
+### General
+- **Systemd**: Add support for systemd timers
+- **Docker**: Add Docker container support
+- **Exceptions**: Implement better exception handling for network timeouts
+- **Retries**: Add retry mechanism for failed operations (e.g. during parallel execution)
+- **Interruptions**: Add cleanup procedures for interrupted backups
+- **Progress bar**: Add progress bars for long operations (parallel execution)
+- **Improved Dry-Run**: Add dry-run output improvements
+- **WebUI**: Access all features via a web user interface with REST API endpoint
+- **Certificate management**: Export functionality for certificate store
+- **Restore script**: Supports remote restore of certificate store
+- **Batch processing**: Streamlines `bootstrap_router.py` operations
+- **Command-line**: Further enhance visual output during parallel execution
 
-### Automation & Scaling
-- Batch processing support for `bootstrap_router.py`
-- Enhanced parallel processing capabilities
+Missing a feature? Open an issue or send a PR :)
 
 ## License
 

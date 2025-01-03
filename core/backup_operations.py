@@ -1,10 +1,13 @@
 """
 RouterOS backup operations management.
+
+This module handles both binary and plaintext backup operations for RouterOS devices.
+It supports encrypted backups, parallel execution, and various backup retention options.
 """
 
 import paramiko
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, TypedDict, Literal
 import logging
 from datetime import datetime
 import os
@@ -14,16 +17,48 @@ from .ssh_utils import SSHManager
 from .router_info import RouterInfoManager
 
 
-class BackupManager:
-    """Manages RouterOS backup operations."""
+class RouterInfo(TypedDict):
+    """Type definition for router information dictionary."""
+    identity: str
+    model: str
+    ros_version: str
+    architecture_name: str
+    cpu_name: str
+    cpu_count: str
+    cpu_frequency: str
+    total_memory: str
+    free_memory: str
+    free_hdd_space: str
+    license: str
 
-    def __init__(self, ssh_manager: SSHManager, router_info_manager: RouterInfoManager):
+
+class BackupResult(TypedDict):
+    """Type definition for backup operation result."""
+    success: bool
+    file_path: Optional[Path]
+    error_message: Optional[str]
+
+
+class BackupManager:
+    """
+    Manages RouterOS backup operations.
+    
+    This class handles both binary (.backup) and plaintext (.rsc) backups,
+    supporting features like encryption, parallel execution, and retention management.
+    
+    Attributes:
+        ssh_manager (SSHManager): Manages SSH connections to routers
+        router_info_manager (RouterInfoManager): Handles router information retrieval
+        logger (logging.Logger): Logger instance for this class
+    """
+
+    def __init__(self, ssh_manager: SSHManager, router_info_manager: RouterInfoManager) -> None:
         """
         Initialize backup manager.
 
         Args:
-            ssh_manager (SSHManager): SSH manager instance
-            router_info_manager (RouterInfoManager): Router info manager instance
+            ssh_manager: Manages SSH connections and command execution
+            router_info_manager: Handles router information gathering
         """
         self.ssh_manager = ssh_manager
         self.router_info_manager = router_info_manager
@@ -32,7 +67,7 @@ class BackupManager:
     def perform_binary_backup(
         self,
         ssh_client: paramiko.SSHClient,
-        router_info: Dict,
+        router_info: RouterInfo,
         backup_password: str,
         encrypted: bool,
         backup_dir: Path,
@@ -43,23 +78,34 @@ class BackupManager:
         """
         Perform binary backup of RouterOS device.
 
+        Creates a binary backup file (.backup) that can be used for full system restore.
+        The backup can be optionally encrypted using the provided password.
+
         Args:
-            ssh_client (paramiko.SSHClient): Connected SSH client
-            router_info (Dict): Router information dictionary
-            backup_password (str): Password for backup encryption
-            encrypted (bool): Whether to encrypt the backup
-            backup_dir (Path): Directory to store backup
-            timestamp (str): Timestamp string for backup file (DDMMYYYY-HHMMSS format)
-            keep_binary_backup (bool): Whether to keep binary backup on router
-            dry_run (bool): If True, only simulate the backup
+            ssh_client: Connected SSH client to the router
+            router_info: Dictionary containing router information
+            backup_password: Password for backup encryption
+            encrypted: Whether to encrypt the backup
+            backup_dir: Directory to store the backup
+            timestamp: Timestamp string (format: DDMMYYYY-HHMMSS)
+            keep_binary_backup: Whether to keep backup file on router
+            dry_run: If True, only simulate the backup
 
         Returns:
-            Tuple[bool, Optional[Path]]: Success status and path to backup file
-            
+            A tuple containing:
+            - bool: True if backup was successful
+            - Optional[Path]: Path to the backup file if successful, None otherwise
+
         File Naming:
-            The binary backup file will be named using the format:
+            The binary backup file follows the format:
             {identity}-{version}-{arch}-{timestamp}.backup
             Example: MYR1-7.16.2-x86_64-02012025-164736.backup
+
+        Error Handling:
+            - Verifies backup file creation on router
+            - Checks file size after download
+            - Handles SSH and SCP errors
+            - Cleans up remote file if needed
         """
         if dry_run:
             self.logger.info("[DRY RUN] Would perform binary backup")
@@ -135,7 +181,7 @@ class BackupManager:
     def perform_plaintext_backup(
         self,
         ssh_client: paramiko.SSHClient,
-        router_info: Dict,
+        router_info: RouterInfo,
         backup_dir: Path,
         timestamp: str,
         keep_plaintext_backup: bool = False,
@@ -144,21 +190,32 @@ class BackupManager:
         """
         Perform plaintext (export) backup of RouterOS device.
 
+        Creates a plaintext backup file (.rsc) containing router configuration
+        that can be used for partial restore or configuration review.
+
         Args:
-            ssh_client (paramiko.SSHClient): Connected SSH client
-            router_info (Dict): Router information dictionary
-            backup_dir (Path): Directory to store backup
-            timestamp (str): Timestamp string for backup file (DDMMYYYY-HHMMSS format)
-            keep_plaintext_backup (bool): Whether to keep plaintext backup on router
-            dry_run (bool): If True, only simulate the backup
+            ssh_client: Connected SSH client to the router
+            router_info: Dictionary containing router information
+            backup_dir: Directory to store the backup
+            timestamp: Timestamp string (format: DDMMYYYY-HHMMSS)
+            keep_plaintext_backup: Whether to keep export on router
+            dry_run: If True, only simulate the backup
 
         Returns:
-            Tuple[bool, Optional[Path]]: Success status and path to backup file
+            A tuple containing:
+            - bool: True if backup was successful
+            - Optional[Path]: Path to the backup file if successful, None otherwise
 
         File Naming:
-            The plaintext export file will be named using the format:
+            The plaintext export file follows the format:
             {identity}-{version}-{arch}-{timestamp}.rsc
             Example: MYR1-7.16.2-x86_64-02012025-164736.rsc
+
+        Error Handling:
+            - Verifies export command output
+            - Handles SSH connection errors
+            - Validates file writing operations
+            - Manages router-side file operations
         """
         if dry_run:
             self.logger.info("[DRY RUN] Would perform plaintext backup")
@@ -211,7 +268,7 @@ class BackupManager:
 
     def save_info_file(
         self,
-        router_info: Dict,
+        router_info: RouterInfo,
         info_file_path: Path,
         dry_run: bool = False
     ) -> bool:
@@ -219,9 +276,9 @@ class BackupManager:
         Save router information to an INFO file.
 
         Args:
-            router_info (Dict): Router information dictionary
-            info_file_path (Path): Path to save INFO file
-            dry_run (bool): If True, only simulate the save
+            router_info: Dictionary containing router information
+            info_file_path: Path to save INFO file
+            dry_run: If True, only simulate the save
 
         Returns:
             bool: True if successful, False otherwise

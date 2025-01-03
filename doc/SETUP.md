@@ -83,15 +83,124 @@ pip install -r requirements.txt
    ```
 
 4. Edit configuration files:
-   - Update global settings in `config/global.yaml`
-   - Add your routers to `config/targets.yaml`
+   - Update global settings in `config/global.yaml`:
+     ```yaml
+     # Backup Settings
+     backup_path_parent: backups     # Base directory for backups
+     backup_retention_days: 90       # Days to keep backups (-1 for infinite)
+     backup_password: your-password  # Default password for encrypted backups
+
+     # SSH Settings
+     ssh:
+       user: rosbackup               # Default SSH username
+       timeout: 30                   # Connection timeout in seconds
+       auth_timeout: 30              # Authentication timeout in seconds
+       known_hosts_file: null        # Optional: Path to known_hosts file
+       add_target_host_key: true     # Whether to auto-add target host keys
+       args:
+         look_for_keys: false        # Search for keys in ~/.ssh/
+         allow_agent: false          # Allow ssh-agent connections
+
+     # Logging Settings
+     log_file_enabled: false         # Enable logging to file
+     log_file: ./rosbackup.log       # Log file path
+     log_level: INFO                 # Log level
+     log_retention_days: 90          # Days to keep logs
+     ```
+   
+   - Add your routers to `config/targets.yaml`:
+     ```yaml
+     routers:
+       - name: ROUTER1                    # Required: Unique identifier
+         enabled: true                    # Optional: Enable/disable this router
+         host: 192.168.88.1               # Required: Router IP or hostname
+         ssh_port: 22                     # Optional: SSH port (default: 22)
+         ssh_user: rosbackup              # Optional: Override global SSH user
+         private_key: ./ssh-keys/private/id_rosbackup  # Required: SSH private key
+         encrypted: false                 # Optional: Enable backup encryption
+         backup_password: MyPassword      # Optional: Override global password
+         backup_retention_days: 90        # Optional: Override global retention
+         enable_binary_backup: true       # Optional: Enable binary backup
+         enable_plaintext_backup: true    # Optional: Enable plaintext backup
+         keep_binary_backup: false        # Optional: Keep backup on router
+         keep_plaintext_backup: false     # Optional: Keep export on router
+     ```
+
+## Backup File Organization
+
+The backup files are organized in a structured hierarchy:
+
+```
+backups/
+└── {identity}-{host}-ROS{ros_version}-{arch}/    # Router-specific directory
+    ├── {identity}-{ros_version}-{arch}-{timestamp}.backup    # Binary backup
+    ├── {identity}-{ros_version}-{arch}-{timestamp}.rsc       # Plaintext export
+    └── {identity}-{ros_version}-{arch}-{timestamp}.INFO.txt  # Router info
+```
+
+### File Naming Convention
+
+- **Directory Name**: `{identity}-{host}-ROS{ros_version}-{arch}`
+  - `identity`: Router's name from config (e.g., "ROUTER1")
+  - `host`: IP address or hostname (e.g., "192.168.88.1")
+  - `ros_version`: RouterOS version (e.g., "7.10.2")
+  - `arch`: Router architecture (e.g., "arm", "x86_64")
+
+- **File Names**: `{identity}-{ros_version}-{arch}-{timestamp}.{ext}`
+  - `identity`: Same as directory
+  - `ros_version`: Same as directory
+  - `arch`: Same as directory
+  - `timestamp`: Backup time (format: DDMMYYYY-HHMMSS)
+  - `ext`: File extension:
+    - `.backup`: Binary backup file
+    - `.rsc`: Plaintext configuration export
+    - `.INFO.txt`: Router information file
+
+Example:
+```
+backups/
+└── ROUTER1-192.168.88.1-ROS7.10.2-arm/
+    ├── ROUTER1-7.10.2-arm-02012025-143022.backup
+    ├── ROUTER1-7.10.2-arm-02012025-143022.rsc
+    └── ROUTER1-7.10.2-arm-02012025-143022.INFO.txt
+```
 
 ## Running Backups
 
-Execute the backup script:
+First, create and activate the Python virtual environment if you haven't already:
+
 ```bash
+# Create virtual environment (only needed once)
+python3 -m venv venv
+
+# Activate the virtual environment (needed each time you start a new shell)
+source venv/bin/activate
+```
+
+Execute the backup script (both methods work):
+```bash
+./rosbackup.py
+# or
 python3 rosbackup.py
 ```
+
+## SSH Configuration
+
+The tool provides several SSH configuration options in `global.yaml`:
+
+```yaml
+ssh:
+  user: rosbackup               # Default SSH username
+  timeout: 30                   # Connection timeout in seconds
+  auth_timeout: 30              # Authentication timeout in seconds
+  known_hosts_file: null        # Optional: Path to known_hosts file
+  add_target_host_key: true     # Whether to auto-add target host keys
+  args:
+    look_for_keys: false        # Search for keys in ~/.ssh/
+    allow_agent: false          # Allow ssh-agent connections
+```
+
+These settings can be overridden per router in `targets.yaml` using the `ssh_args` parameter.
 
 ## Troubleshooting
 

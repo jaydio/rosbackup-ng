@@ -1,29 +1,57 @@
 #!/usr/bin/env python3
 """
-bootstrap_router.py - A script to create a backup user on a RouterOS device and install an SSH public key for authentication.
+bootstrap_router.py - Configure RouterOS devices for automated backups
+
+This script prepares RouterOS devices for automated backups by:
+1. Creating a dedicated backup user with appropriate permissions
+2. Installing an SSH public key for secure authentication
+3. Validating the setup and access rights
 
 Usage:
-    python3 bootstrap_router.py [--host <ROUTER_IP>] [--ssh-user <SSH_USERNAME>] [--ssh-user-password <SSH_PASSWORD>]
-                              [--ssh-user-private-key <SSH_PRIVATE_KEY_PATH>] [--ssh-port <SSH_PORT>] 
-                              [--backup-user <BACKUP_USERNAME>] [--backup-user-password <BACKUP_USER_PASSWORD>]
-                              [--backup-user-public-key <PUBLIC_KEY_PATH>] [--show-backup-credentials]
-                              [--backup-user-group <USER_GROUP>]
-                              
-                              [--log-file <LOG_FILE_PATH>] [--no-color]
+    python3 bootstrap_router.py [OPTIONS]
+
+Required Options:
+    --host HOST                  RouterOS device IP address or hostname
+    --backup-user-public-key KEY Public key file for backup user authentication
+
+Authentication Options (one required):
+    --ssh-user-password PASS     SSH password for initial connection
+    --ssh-user-private-key KEY   SSH private key for initial connection
+
+Optional Settings:
+    --ssh-user USER             SSH username for initial connection [default: admin]
+    --ssh-port PORT            SSH port number [default: 22]
+    --backup-user USER         Username for backup account [default: backup]
+    --backup-user-password PASS Password for backup user [auto-generated if not set]
+    --backup-user-group GROUP  User group for backup user [default: full]
+    --show-backup-credentials  Display generated backup user credentials
+    --log-file FILE           Path to log file [default: no file logging]
+    --no-color                Disable colored output
 
 Examples:
-    # Using SSH password authentication and specifying all parameters
-    python3 bootstrap_router.py --host 192.168.100.225 --ssh-user admin --ssh-user-password adminpass \
-        --backup-user backup --backup-user-password backuppass123 --backup-user-public-key /path/to/backup_user_key.pub \
-        --ssh-port 2222 --log-file /var/log/bootstrap_router.log
+    # Basic usage with password authentication:
+    python3 bootstrap_router.py --host 192.168.1.1 \\
+        --ssh-user admin --ssh-user-password adminpass \\
+        --backup-user-public-key ~/.ssh/backup_key.pub
 
-    # Using SSH key-based authentication and generating a random password for the backup user
-    python3 bootstrap_router.py --host 192.168.100.225 --ssh-user admin --ssh-user-private-key /path/to/admin_private_key \
-        --backup-user-public-key /path/to/backup_user_key.pub --ssh-port 2200
+    # Using SSH key authentication with custom settings:
+    python3 bootstrap_router.py --host 192.168.1.1 \\
+        --ssh-user admin --ssh-user-private-key ~/.ssh/admin_key \\
+        --backup-user backupuser --backup-user-group read \\
+        --backup-user-public-key ~/.ssh/backup_key.pub \\
+        --ssh-port 2222 --log-file /var/log/bootstrap.log
 
-    # Using interactive password prompt and showing backup credentials without file logging
-    python3 bootstrap_router.py --host 192.168.100.225 --backup-user-public-key /path/to/backup_user_key.pub \
-        --show-backup-credentials --ssh-port 2222
+    # Interactive password prompt with backup credential display:
+    python3 bootstrap_router.py --host 192.168.1.1 \\
+        --backup-user-public-key ~/.ssh/backup_key.pub \\
+        --show-backup-credentials
+
+Notes:
+    - The script requires Python 3.6 or later
+    - The backup user's password will be auto-generated if not specified
+    - SSH key authentication is recommended over password authentication
+    - Log files are rotated automatically (max 5 files of 1MB each)
+    - Use --show-backup-credentials with caution in production environments
 """
 
 import argparse
@@ -111,7 +139,7 @@ def get_password(prompt: str) -> str:
 def parse_arguments():
     """Parse command-line arguments with renamed parameters and default values."""
     parser = argparse.ArgumentParser(
-        description="Bootstrap a backup user on a RouterOS device and install an SSH public key for authentication.",
+        description="Configure RouterOS devices for automated backups",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=textwrap.dedent('''
             Examples:
@@ -127,7 +155,7 @@ def parse_arguments():
     parser.add_argument('--ssh-user-password', help='Password for the SSH user. If not provided, will prompt for password')
     parser.add_argument('--ssh-user-private-key', help='Path to private key file for the SSH user')
     parser.add_argument('--ssh-port', type=int, default=22, help='SSH port number. Default: 22')
-    parser.add_argument('--backup-user', default='rosbackup', help='Username to create for backup operations. Default: rosbackup')
+    parser.add_argument('--backup-user', default='backup', help='Username to create for backup operations. Default: backup')
     parser.add_argument('--backup-user-password', help='Password for the backup user. If not specified, a random password will be generated')
     parser.add_argument('--backup-user-public-key', required=True, help='Path to public key file to install for the backup user')
     parser.add_argument('--show-backup-credentials', action='store_true', default=False, help='Show the backup user credentials after setup')
