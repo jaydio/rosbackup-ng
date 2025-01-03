@@ -4,6 +4,10 @@ All notable changes to rosbackup-ng.
 
 ## [Unreleased]
 
+### Added
+- Improved logging format to include router name in log messages
+- Added RouterLoggerAdapter for router-specific logging context
+
 ## [0.1.2] - 2025-01-03
 
 ### Added

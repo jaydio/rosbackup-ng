@@ -42,21 +42,29 @@ class SSHManager:
         logger (logging.Logger): Logger instance for this class
     """
 
-    def __init__(self, ssh_args: SSHConfig, target_name: str = None) -> None:
+    def __init__(self, ssh_args: SSHConfig, logger: Optional[logging.LoggerAdapter] = None) -> None:
         """
         Initialize SSH manager with configuration.
 
         Args:
             ssh_args: SSH configuration including:
                 - timeout: Connection timeout in seconds
-            target_name: Name of the target router for logging
+                - auth_timeout: Authentication timeout in seconds
+                - known_hosts_file: Optional path to known_hosts file
+                - add_target_host_key: Whether to auto-add host keys
+                - args: Additional SSH arguments:
+                    - look_for_keys: Search for discoverable keys
+                    - allow_agent: Allow connecting to ssh-agent
+                    - compress: Enable transport compression
+                    - auth_timeout: Authentication response timeout
+                    - channel_timeout: Channel open timeout
+                    - disabled_algorithms: Dict of algorithms to disable
+                    - keepalive_interval: Seconds between keepalives
+                    - keepalive_countmax: Max keepalive failures
+            logger: Optional logger adapter for router-specific logging
         """
         self.ssh_args = ssh_args
-        self.client = None
-        if target_name:
-            self.logger = logging.LoggerAdapter(logging.getLogger(__name__), {'target': target_name})
-        else:
-            self.logger = logging.getLogger(__name__)
+        self.logger = logger or logging.getLogger(__name__)
 
     def create_client(
         self, 

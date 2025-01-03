@@ -89,9 +89,8 @@ class ColoredFormatter(logging.Formatter):
     green = "\x1b[32;20m"
     yellow = "\x1b[33;20m"
     red = "\x1b[31;20m"
-    bold = "\x1b[1m"
     reset = "\x1b[0m"
-    format_str = "%(asctime)s [%(levelname)s]%(target_str)s %(message)s"
+    format_str = "%(asctime)s [%(levelname)s] [%(routername)s] %(message)s"
 
     def __init__(self, use_colors=True):
         """Initialize the formatter with color option."""
@@ -106,16 +105,22 @@ class ColoredFormatter(logging.Formatter):
         }
 
     def format(self, record):
-        """Format the log record with colors and target name."""
-        # Add target name if available in extra
-        if hasattr(record, 'target'):
-            record.target_str = f" [{self.bold if self.use_colors else ''}{record.target}{self.reset if self.use_colors else ''}]"
-        else:
-            record.target_str = ""
-            
+        if not hasattr(record, 'routername'):
+            record.routername = '-'
         log_fmt = self.FORMATS.get(record.levelno)
         formatter = logging.Formatter(log_fmt, datefmt='%Y-%m-%d %H:%M:%S')
         return formatter.format(record)
+
+class RouterLoggerAdapter(logging.LoggerAdapter):
+    """Adapter that adds router name to log records."""
+    
+    def process(self, msg, kwargs):
+        # Don't modify paramiko debug messages
+        if isinstance(msg, str) and msg.startswith(('DEB [', 'INF [', 'SSH exception')):
+            return msg, kwargs
+            
+        kwargs.setdefault('extra', {})['routername'] = self.extra['routername']
+        return msg, kwargs
 
 def setup_logging(log_file: str = None, log_level: str = 'INFO', use_colors: bool = True):
     """Configure logging.
@@ -125,22 +130,27 @@ def setup_logging(log_file: str = None, log_level: str = 'INFO', use_colors: boo
         log_level (str, optional): Logging level. Defaults to 'INFO'.
         use_colors (bool, optional): Whether to use colored output. Defaults to True.
     """
+    # Set up root logger
     root_logger = logging.getLogger()
-    root_logger.setLevel(getattr(logging, log_level))
+    root_logger.setLevel(getattr(logging, log_level.upper()))
 
-    # Remove any existing handlers
-    root_logger.handlers = []
+    # Remove existing handlers
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
 
-    # Console handler with color formatting
+    # Create console handler with custom formatter
     console_handler = logging.StreamHandler()
-    console_handler.setFormatter(ColoredFormatter(use_colors=use_colors))
+    console_handler.setFormatter(ColoredFormatter(use_colors))
     root_logger.addHandler(console_handler)
 
-    # File handler if log file is specified (never use colors in file)
+    # Add file handler if specified
     if log_file:
         file_handler = logging.FileHandler(log_file)
         file_handler.setFormatter(ColoredFormatter(use_colors=False))
         root_logger.addHandler(file_handler)
+
+    # Set Paramiko log level to match our level
+    logging.getLogger("paramiko").setLevel(getattr(logging, log_level.upper()))
 
 def load_config(config_path: Path) -> Dict:
     """Load configuration file (YAML)."""
@@ -158,6 +168,7 @@ def backup_router(
     ssh_args: Dict,
     backup_password: str,
     notifier: Notifications,
+    logger: RouterLoggerAdapter,
     dry_run: bool = False
 ) -> bool:
     """
@@ -170,17 +181,19 @@ def backup_router(
         ssh_args (Dict): SSH connection arguments
         backup_password (str): Password for encrypted backups
         notifier (Notifications): Notification manager
+        logger (RouterLoggerAdapter): Logger for the router
         dry_run (bool): If True, simulate operations
 
     Returns:
         bool: True if backup successful, False otherwise
     """
-    logger = logging.LoggerAdapter(logging.getLogger(__name__), {'target': router['name']})
+    router_name = router.get('name', 'unknown')
+    
     if dry_run:
-        logger.info(f"[DRY RUN] Would backup router: {router['name']}")
+        logger.info(f"[DRY RUN] Would backup router: {router_name}")
 
     # Initialize managers
-    ssh_manager = SSHManager(ssh_args, router['name'])
+    ssh_manager = SSHManager(ssh_args, logger)
     router_info_manager = RouterInfoManager(ssh_manager)
     backup_manager = BackupManager(ssh_manager, router_info_manager)
 
@@ -259,9 +272,9 @@ def backup_router(
         # Handle notifications
         if not dry_run:
             if success and notifier.notify_on_success:
-                notifier.notify_backup(router['name'], router['host'], True, backup_files)
+                notifier.notify_backup(router_name, router['host'], True, backup_files)
             elif not success and notifier.notify_on_failed:
-                notifier.notify_backup(router['name'], router['host'], False, backup_files)
+                notifier.notify_backup(router_name, router['host'], False, backup_files)
 
         return success
 
@@ -271,79 +284,79 @@ def backup_router(
 def main():
     """Main function to execute the backup process."""
     args = parse_arguments()
-    
-    # Setup logging with color option
-    setup_logging(
-        log_file=args.log_file,
-        log_level=args.log_level,
-        use_colors=not args.no_color
-    )
+    setup_logging(args.log_file, args.log_level, not args.no_color)
 
-    if args.dry_run:
-        logging.info("Running in DRY RUN mode - no changes will be made")
-
-    config_dir = Path(args.config_dir)
-    global_config_path = config_dir / "global.yaml"
-    targets_config_path = config_dir / "targets.yaml"
+    # Create root logger adapter for non-router-specific logs
+    logger = RouterLoggerAdapter(logging.getLogger(__name__), {'routername': 'MAIN'})
 
     try:
-        global_config = load_config(global_config_path)
-        targets_config = load_config(targets_config_path)
-    except Exception as e:
-        logging.error(f"Failed to load configuration files: {str(e)}")
-        sys.exit(1)
+        config_dir = Path(args.config_dir)
+        global_config_path = config_dir / "global.yaml"
+        targets_config_path = config_dir / "targets.yaml"
 
-    backup_path = Path(global_config.get('backup_path', 'backups'))
-    if not args.dry_run:
-        os.makedirs(backup_path, exist_ok=True)
+        try:
+            global_config = load_config(global_config_path)
+            targets_config = load_config(targets_config_path)
+        except Exception as e:
+            logger.error(f"Failed to load configuration files: {str(e)}")
+            sys.exit(1)
 
-    notifier = Notifications(
-        enabled=global_config.get('notifications', {}).get('enabled', False),
-        notify_on_failed=global_config.get('notifications', {}).get('notify_on_failed', True),
-        notify_on_success=global_config.get('notifications', {}).get('notify_on_success', False),
-        smtp_config=global_config.get('notifications', {}).get('smtp', {})
-    )
+        backup_path = Path(global_config.get('backup_path', 'backups'))
+        if not args.dry_run:
+            os.makedirs(backup_path, exist_ok=True)
 
-    ssh_args = global_config.get('ssh', {})  # Changed from ssh_args to ssh
-    backup_password = global_config.get('backup_password', '')
+        notifier = Notifications(
+            enabled=global_config.get('notifications', {}).get('enabled', False),
+            notify_on_failed=global_config.get('notifications', {}).get('notify_on_failed', True),
+            notify_on_success=global_config.get('notifications', {}).get('notify_on_success', False),
+            smtp_config=global_config.get('notifications', {}).get('smtp', {})
+        )
 
-    success_count = 0
-    failure_count = 0
+        ssh_args = global_config.get('ssh', {})  # Changed from ssh_args to ssh
+        backup_password = global_config.get('backup_password', '')
 
-    routers = targets_config['routers']
-    # Process routers in parallel
-    max_workers = min(len(routers), global_config.get('max_parallel_backups', 5))
-    if max_workers > 1:
-        logging.info("Parallel execution enabled.")
-        logging.info(f"Max parallel backups set to: {max_workers}")
+        success_count = 0
+        failure_count = 0
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_router = {
-            executor.submit(
-                backup_router,
-                router,
-                global_config,
-                backup_path,
-                ssh_args,
-                backup_password,
-                notifier,
-                args.dry_run
-            ): router for router in routers
-        }
+        routers = targets_config['routers']
+        # Process routers in parallel
+        max_workers = min(len(routers), global_config.get('max_parallel_backups', 5))
+        if max_workers > 1:
+            logger.info("Parallel execution enabled.")
+            logger.info(f"Max parallel backups set to: {max_workers}")
 
-        for future in as_completed(future_to_router):
-            router = future_to_router[future]
-            try:
-                if future.result():
-                    success_count += 1
-                else:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_router = {
+                executor.submit(
+                    backup_router,
+                    router,
+                    global_config,
+                    backup_path,
+                    ssh_args,
+                    backup_password,
+                    notifier,
+                    RouterLoggerAdapter(logging.getLogger(__name__), {'routername': router.get('name', 'unknown')}),
+                    args.dry_run
+                ): router for router in routers
+            }
+
+            for future in as_completed(future_to_router):
+                router = future_to_router[future]
+                try:
+                    if future.result():
+                        success_count += 1
+                    else:
+                        failure_count += 1
+                except Exception as e:
+                    logger.error(f"Router {router.get('name', 'unknown')} backup failed: {str(e)}")
                     failure_count += 1
-            except Exception as e:
-                logging.error(f"Router {router.get('name', 'unknown')} backup failed: {str(e)}")
-                failure_count += 1
 
-    logging.info(f"Backup completed. Success: {success_count}, Failed: {failure_count}")
-    if failure_count > 0:
+        logger.info(f"Backup completed. Success: {success_count}, Failed: {failure_count}")
+        if failure_count > 0:
+            sys.exit(1)
+
+    except Exception as e:
+        logger.error(f"Error: {str(e)}")
         sys.exit(1)
 
 def parse_arguments():
