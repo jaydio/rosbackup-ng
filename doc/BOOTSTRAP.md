@@ -75,7 +75,6 @@ python3 bootstrap_router.py \
 
 Sample output:
 ```
-Enter password for user 'admin': ********
 2025-01-02 22:46:06 [INFO] Connected (version 2.0, client ROSSSH)
 2025-01-02 22:46:06 [INFO] Authentication (password) successful!
 2025-01-02 22:46:06 [INFO] SSH connection established with 192.168.88.1:22 using password-based authentication
@@ -128,11 +127,17 @@ python3 bootstrap_router.py \
 
 Sample output with credentials:
 ```
-...
+[...]
+2025-01-03 21:33:27 [INFO] User 'rosbackup' created successfully with group 'full'
+2025-01-03 21:33:27 [INFO] SSH public key installed for user 'rosbackup'
+
 Backup User Credentials:
-Username: backup
+Username: rosbackup
 Password: Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8
-...
+
+2025-01-03 21:33:27 [INFO] Backup user 'rosbackup' is set up successfully on router 192.168.88.1
+2025-01-03 21:33:27 [INFO] SSH connection closed.
+2025-01-03 21:33:27 [INFO] Bootstrap process completed successfully.
 ```
 
 ## Command-Line Options
