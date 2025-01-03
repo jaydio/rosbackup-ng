@@ -84,24 +84,35 @@ class RouterInfoManager:
                 return None
             router_info.update(identity_info)
 
-            # Get system routerboard info
+            # Get system routerboard info (optional)
             stdout, stderr = self.ssh_manager.execute_command(ssh_client, "/system routerboard print")
-            if stderr:
-                self.logger.error(f"Failed to get routerboard info: {stderr}")
-                return None
-
-            routerboard_info = self._parse_routerboard_info(stdout)
-            if not routerboard_info:
-                self.logger.error("Failed to parse routerboard info")
-                return None
-            router_info.update(routerboard_info)
+            if not stderr:
+                routerboard_info = self._parse_routerboard_info(stdout)
+                if routerboard_info:
+                    router_info.update(routerboard_info)
+            else:
+                self.logger.debug("Router is not a RouterBoard device, using system resource architecture")
 
             # Make sure we have the required fields
-            required_fields = ["identity", "ros_version", "architecture_name"]
+            required_fields = ["identity", "ros_version"]
             for field in required_fields:
                 if field not in router_info:
                     self.logger.error(f"Missing required field: {field}")
                     return None
+
+            # If architecture_name wasn't set by routerboard info, use system resource info
+            if "architecture_name" not in router_info and "architecture" in router_info:
+                arch = router_info["architecture"].lower()
+                if "arm" in arch:
+                    router_info["architecture_name"] = "arm64" if "64" in arch else "arm"
+                elif "mips" in arch:
+                    router_info["architecture_name"] = "mipsbe"
+                elif "x86" in arch:
+                    router_info["architecture_name"] = "x86_64" if "64" in arch else "x86"
+                elif "tile" in arch:
+                    router_info["architecture_name"] = "tile"
+                else:
+                    router_info["architecture_name"] = "x86_64"  # Default to most common
 
             self.logger.debug(f"Router info: {router_info}")
             return router_info
@@ -126,20 +137,6 @@ class RouterInfoManager:
             if version_match:
                 info["ros_version"] = version_match.group(1)
                 info["ros_channel"] = version_match.group(2) or "stable"
-
-        # Set architecture name based on architecture field
-        if "architecture" in info:
-            arch = info["architecture"].lower()
-            if "arm" in arch:
-                info["architecture_name"] = "arm64" if "64" in arch else "arm"
-            elif "mips" in arch:
-                info["architecture_name"] = "mipsbe"
-            elif "x86" in arch:
-                info["architecture_name"] = "x86_64" if "64" in arch else "x86"
-            elif "tile" in arch:
-                info["architecture_name"] = "tile"
-            else:
-                info["architecture_name"] = "x86_64"  # Default to most common
 
         return info
 
