@@ -242,6 +242,10 @@ class BackupManager:
         Creates a plaintext backup file (.rsc) containing router configuration
         that can be used for partial restore or configuration review.
 
+        Export Parameters:
+            - terse: Produces single-line commands without wrapping, ideal for grep and automated processing
+            - show-sensitive: Includes sensitive data like passwords and private keys
+
         Args:
             ssh_client: Connected SSH client to the router
             router_info: Dictionary containing router information
@@ -257,8 +261,8 @@ class BackupManager:
 
         File Naming:
             The plaintext export file follows the format:
-            {identity}-{version}-{arch}-{timestamp}.rsc
-            Example: MYR1-7.16.2-x86_64-02012025-164736.rsc
+            {identity}_{version}_{arch}_{timestamp}.rsc
+            Example: MYR1_7.16.2_x86_64_02012025-164736.rsc
 
         Error Handling:
             - Verifies export command output
@@ -266,6 +270,7 @@ class BackupManager:
             - Validates file writing operations
             - Manages router-side file operations
         """
+
         if dry_run:
             self.logger.info("[DRY RUN] Would perform plaintext backup")
             return True, Path(backup_dir) / f"dry_run_{timestamp}.rsc"
@@ -273,7 +278,7 @@ class BackupManager:
         # Export configuration to file
         try:
             # Execute export command and get output directly
-            stdin, stdout, stderr = ssh_client.exec_command('/export')
+            stdin, stdout, stderr = ssh_client.exec_command('/export terse show-sensitive')
             stdout = stdout.read().decode()
             stderr = stderr.read().decode()
 
@@ -295,7 +300,7 @@ class BackupManager:
             if keep_plaintext_backup:
                 try:
                     # Save the export to a file on the router
-                    save_command = f'/export file={backup_name}'
+                    save_command = f'/export terse show-sensitive file={backup_name}'
                     stdin, stdout, stderr = ssh_client.exec_command(save_command)
                     stderr = stderr.read().decode()
                     if stderr:

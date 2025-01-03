@@ -96,6 +96,35 @@ backups/
     └── HQ-ROUTER-01_7.10.2_arm_02012025-143022.INFO.txt
 ```
 
+## Backup Types
+
+### Binary Backup (.backup)
+- Full system backup that can be used for complete system restore (same router model)
+- Can be encrypted with a password (MikroTik proprietary)
+- Contains all system settings, including:
+  - Interface MAC addresses
+  - Sensitive data
+  - Certificate store
+  - User database
+
+### Plaintext Backup (.rsc)
+- Human-readable script containing router configuration
+- Uses RouterOS export command with following parameters:
+  - `terse`: Produces single-line commands without wrapping
+    - Makes output easier to process with tools like `grep`
+    - Better for automated parsing and analysis
+    - More consistent format across RouterOS versions
+  - `show-sensitive`: Includes sensitive data like:
+    - SNMP community strings
+    - RADIUS secrets
+    - PPP/PPTP/L2TP/SSTP/OVPN secrets
+    - IPsec pre-shared keys
+    - Wireguard private keys
+- __<u>Does NOT include</u>__
+  - Certificate store (will be added in a future version)
+  - User database and user passwords (unsupported)
+  - ZeroTier private key (unsupported)
+
 ## Details setup instructions
 
 For detailed setup instructions and configuration guide, see:
