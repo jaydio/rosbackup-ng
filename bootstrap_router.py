@@ -21,7 +21,7 @@ Authentication Options (one required):
 Optional Settings:
     --ssh-user USER             SSH username for initial connection [default: admin]
     --ssh-port PORT            SSH port number [default: 22]
-    --backup-user USER         Username for backup account [default: backup]
+    --backup-user USER         Username for backup account [default: rosbackup]
     --backup-user-password PASS Password for backup user [auto-generated if not set]
     --backup-user-group GROUP  User group for backup user [default: full]
     --show-backup-credentials  Display generated backup user credentials
@@ -155,7 +155,7 @@ def parse_arguments():
     parser.add_argument('--ssh-user-password', help='Password for the SSH user. If not provided, will prompt for password')
     parser.add_argument('--ssh-user-private-key', help='Path to private key file for the SSH user')
     parser.add_argument('--ssh-port', type=int, default=22, help='SSH port number. Default: 22')
-    parser.add_argument('--backup-user', default='backup', help='Username to create for backup operations. Default: backup')
+    parser.add_argument('--backup-user', default='rosbackup', help='Username to create for backup operations. Default: rosbackup')
     parser.add_argument('--backup-user-password', help='Password for the backup user. If not specified, a random password will be generated')
     parser.add_argument('--backup-user-public-key', required=True, help='Path to public key file to install for the backup user')
     parser.add_argument('--show-backup-credentials', action='store_true', default=False, help='Show the backup user credentials after setup')
