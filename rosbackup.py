@@ -341,37 +341,22 @@ def main():
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description='Backup RouterOS devices via SSH',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        description="Automated RouterOS backup utility",
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument(
-        '--config-dir',
-        type=str,
-        default='config',
-        help='Directory containing configuration files'
-    )
-    parser.add_argument(
-        '--log-file',
-        type=str,
-        help='Log file path (optional)'
-    )
-    parser.add_argument(
-        '--log-level',
-        type=str,
-        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-        default='INFO',
-        help='Logging level'
-    )
-    parser.add_argument(
-        '--dry-run',
-        action='store_true',
-        help='Simulate backup operations without making changes'
-    )
-    parser.add_argument(
-        '--no-color',
-        action='store_true',
-        help='Disable colored output'
-    )
+
+    parser.add_argument('-c', '--config-dir', default='./config',
+                       help='Directory containing configuration files')
+    parser.add_argument('-l', '--log-file',
+                       help='Override log file path')
+    parser.add_argument('-L', '--log-level', default='INFO',
+                       choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+                       help='Logging level')
+    parser.add_argument('-n', '--no-color', action='store_true',
+                       help='Disable colored output')
+    parser.add_argument('-d', '--dry-run', action='store_true',
+                       help='Simulate operations without making changes')
+
     return parser.parse_args()
 
 if __name__ == "__main__":

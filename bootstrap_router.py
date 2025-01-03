@@ -11,40 +11,41 @@ Usage:
     python3 bootstrap_router.py [OPTIONS]
 
 Required Options:
-    --host HOST                  RouterOS device IP address or hostname
-    --backup-user-public-key KEY Public key file for backup user authentication
+    -H HOST, --host HOST                  RouterOS device IP address or hostname
+    -k KEY, --backup-user-public-key KEY Public key file for backup user authentication
 
 Authentication Options (one required):
-    --ssh-user-password PASS     SSH password for initial connection
-    --ssh-user-private-key KEY   SSH private key for initial connection
+    -P PASS, --ssh-user-password PASS     SSH password for initial connection
+    -i KEY, --ssh-user-private-key KEY   SSH private key for initial connection
 
 Optional Settings:
-    --ssh-user USER             SSH username for initial connection [default: admin]
-    --ssh-port PORT            SSH port number [default: 22]
-    --backup-user USER         Username for backup account [default: rosbackup]
-    --backup-user-password PASS Password for backup user [auto-generated if not set]
-    --backup-user-group GROUP  User group for backup user [default: full]
-    --show-backup-credentials  Display generated backup user credentials
-    --log-file FILE           Path to log file [default: no file logging]
-    --no-color                Disable colored output
+    -u USER, --ssh-user USER             SSH username for initial connection [default: admin]
+    -p PORT, --ssh-port PORT            SSH port number [default: 22]
+    -b USER, --backup-user USER         Username for backup account [default: rosbackup]
+    -B PASS, --backup-user-password PASS Password for backup user [auto-generated if not set]
+    -g GROUP, --backup-user-group GROUP  User group for backup user [default: full]
+    -s, --show-backup-credentials  Display generated backup user credentials
+    -l FILE, --log-file FILE           Path to log file [default: no file logging]
+    -n, --no-color                Disable colored output
+    -d, --dry-run                Show what would be done without making changes
 
 Examples:
     # Basic usage with password authentication:
-    python3 bootstrap_router.py --host 192.168.1.1 \\
-        --ssh-user admin --ssh-user-password adminpass \\
-        --backup-user-public-key ~/.ssh/backup_key.pub
+    python3 bootstrap_router.py -H 192.168.1.1 \\
+        -u admin -P adminpass \\
+        -k ~/.ssh/backup_key.pub
 
     # Using SSH key authentication with custom settings:
-    python3 bootstrap_router.py --host 192.168.1.1 \\
-        --ssh-user admin --ssh-user-private-key ~/.ssh/admin_key \\
-        --backup-user backupuser --backup-user-group read \\
-        --backup-user-public-key ~/.ssh/backup_key.pub \\
-        --ssh-port 2222 --log-file /var/log/bootstrap.log
+    python3 bootstrap_router.py -H 192.168.1.1 \\
+        -u admin -i ~/.ssh/admin_key \\
+        -b backupuser -g read \\
+        -k ~/.ssh/backup_key.pub \\
+        -p 2222 -l /var/log/bootstrap.log
 
     # Interactive password prompt with backup credential display:
-    python3 bootstrap_router.py --host 192.168.1.1 \\
-        --backup-user-public-key ~/.ssh/backup_key.pub \\
-        --show-backup-credentials
+    python3 bootstrap_router.py -H 192.168.1.1 \\
+        -k ~/.ssh/backup_key.pub \\
+        -s
 
 Notes:
     - The script requires Python 3.6 or later
@@ -143,26 +144,46 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=textwrap.dedent('''
             Examples:
-              %(prog)s --host 192.168.1.1 --backup-user-public-key ~/.ssh/backup.pub
-              %(prog)s --host router.local --ssh-user admin --ssh-port 2222 --backup-user-public-key ./keys/backup.pub
+              %(prog)s -H 192.168.1.1 -k ~/.ssh/backup.pub
+              %(prog)s -H router.local -u admin -p 2222 -k ./keys/backup.pub
 
             Note: Strict host key checking is disabled by default for initial setup.
             ''')
     )
 
-    parser.add_argument('--host', required=True, help='Hostname or IP address of the target RouterOS device')
-    parser.add_argument('--ssh-user', default='admin', help='Existing SSH username with privileges to create users and manage SSH keys. Default: admin')
-    parser.add_argument('--ssh-user-password', help='Password for the SSH user. If not provided, will prompt for password')
-    parser.add_argument('--ssh-user-private-key', help='Path to private key file for the SSH user')
-    parser.add_argument('--ssh-port', type=int, default=22, help='SSH port number. Default: 22')
-    parser.add_argument('--backup-user', default='rosbackup', help='Username to create for backup operations. Default: rosbackup')
-    parser.add_argument('--backup-user-password', help='Password for the backup user. If not specified, a random password will be generated')
-    parser.add_argument('--backup-user-public-key', required=True, help='Path to public key file to install for the backup user')
-    parser.add_argument('--show-backup-credentials', action='store_true', default=False, help='Show the backup user credentials after setup')
-    parser.add_argument('--backup-user-group', default='full', help="User group for the backup user. Default: 'full'")
-    parser.add_argument('--log-file', help='Path to log file. If not specified, logging to file is disabled')
-    parser.add_argument('--no-color', action='store_true', help='Disable colored output')
-    parser.add_argument('--dry-run', action='store_true', help='Show what would be done without making changes')
+    # Required arguments
+    parser.add_argument('-H', '--host', required=True,
+                       help='Hostname or IP address of the target RouterOS device')
+    parser.add_argument('-k', '--backup-user-public-key', required=True,
+                       help='Path to public key file to install for the backup user')
+
+    # SSH connection options
+    parser.add_argument('-u', '--ssh-user', default='admin',
+                       help='Existing SSH username with privileges. Default: admin')
+    parser.add_argument('-P', '--ssh-user-password',
+                       help='Password for the SSH user. If not provided, will prompt')
+    parser.add_argument('-i', '--ssh-user-private-key',
+                       help='Path to private key file for the SSH user')
+    parser.add_argument('-p', '--ssh-port', type=int, default=22,
+                       help='SSH port number. Default: 22')
+
+    # Backup user options
+    parser.add_argument('-b', '--backup-user', default='rosbackup',
+                       help='Username to create for backup operations. Default: rosbackup')
+    parser.add_argument('-B', '--backup-user-password',
+                       help='Password for the backup user (auto-generated if not set)')
+    parser.add_argument('-g', '--backup-user-group', default='full',
+                       help="User group for the backup user. Default: 'full'")
+
+    # Other options
+    parser.add_argument('-s', '--show-backup-credentials', action='store_true',
+                       help='Show the backup user credentials after setup')
+    parser.add_argument('-l', '--log-file',
+                       help='Path to log file (disabled if not specified)')
+    parser.add_argument('-n', '--no-color', action='store_true',
+                       help='Disable colored output')
+    parser.add_argument('-d', '--dry-run', action='store_true',
+                       help='Show what would be done without making changes')
 
     args = parser.parse_args()
 
