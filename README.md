@@ -2,10 +2,6 @@
 
 A robust Python-based utility for automating backups of multiple RouterOS devices via SSH. This tool supports both binary and plaintext backups, with features for backup retention management, parallel execution, and dry-run capabilities.
 
-## Showcase
-
-![Demo GIF](demo.gif)
-
 ## Overview
 
 - **Simplified setup**: Uses a Python virtual environment
