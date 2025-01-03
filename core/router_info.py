@@ -155,18 +155,29 @@ class RouterInfoManager:
     def _parse_routerboard_info(self, output: str) -> Dict[str, Any]:
         """Parse routerboard info output."""
         info = {}
-        for line in output.splitlines():
-            if ":" in line:
-                key, value = line.split(":", 1)
-                key = key.strip().lower().replace(" ", "_")
-                value = value.strip()
-                info[key] = value
+        self.logger.debug(f"Parsing routerboard info: {output}")
+        
+        try:
+            for line in output.splitlines():
+                if ":" in line:
+                    key, value = line.split(":", 1)
+                    key = key.strip().lower().replace(" ", "_")
+                    value = value.strip()
+                    info[key] = value
+                    self.logger.debug(f"Parsed routerboard field: {key} = {value}")
 
-        # Map model-specific info
-        if "model" in info:
-            info["architecture_name"] = self._get_architecture_name(info["model"])
+            # Map model-specific info
+            if "model" in info:
+                info["architecture_name"] = self._get_architecture_name(info["model"])
+                self.logger.debug(f"Mapped model {info['model']} to architecture {info['architecture_name']}")
+            else:
+                self.logger.debug("No model found in routerboard info")
+                return None
 
-        return info
+            return info
+        except Exception as e:
+            self.logger.error(f"Error parsing routerboard info: {str(e)}")
+            return None
 
     def _get_architecture_name(self, model: str) -> str:
         """Get architecture name based on model."""
