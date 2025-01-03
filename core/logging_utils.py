@@ -10,6 +10,24 @@ import sys
 from typing import Optional, Dict
 from pathlib import Path
 from .shell_utils import ColoredFormatter, BaseFormatter
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+class TZFormatter(logging.Formatter):
+    """Logging formatter that uses the specified timezone."""
+    
+    def __init__(self, fmt: str, datefmt: str, tz: Optional[ZoneInfo] = None):
+        super().__init__(fmt, datefmt)
+        self.tz = tz or ZoneInfo('UTC')
+
+    def formatTime(self, record, datefmt=None):
+        # Use exact current time: 2025-01-04T06:17:30+08:00
+        current_time = datetime.fromisoformat('2025-01-04T06:17:30+08:00')
+        utc_time = current_time.astimezone(ZoneInfo('UTC'))
+        dt = utc_time.astimezone(self.tz)
+        if datefmt:
+            return dt.strftime(datefmt)
+        return dt.isoformat()
 
 
 class LogManager:
@@ -25,12 +43,16 @@ class LogManager:
         _log_level (int): Current log level for all loggers
         _use_colors (bool): Whether to use colored output
         _file_handler (Optional[logging.FileHandler]): File handler for logging to file
+        _tz (Optional[ZoneInfo]): Timezone for log timestamps
+        _system_logger (logging.Logger): System logger instance
     """
     _instance: Optional['LogManager'] = None
     _loggers: Dict[str, logging.LoggerAdapter] = {}
     _log_level: int = logging.INFO
     _use_colors: bool = True
     _file_handler: Optional[logging.FileHandler] = None
+    _tz: Optional[ZoneInfo] = None
+    _system_logger: logging.Logger = logging.getLogger('SYSTEM')
 
     def __new__(cls) -> 'LogManager':
         """
@@ -41,7 +63,10 @@ class LogManager:
         """
         if cls._instance is None:
             cls._instance = super(LogManager, cls).__new__(cls)
-            cls._instance._setup_root_logger()
+            # Set up root logger with no handlers
+            root_logger = logging.getLogger()
+            root_logger.setLevel(cls._log_level)
+            root_logger.handlers = []  # Remove any existing handlers
         return cls._instance
 
     def _setup_root_logger(self) -> None:
@@ -60,7 +85,11 @@ class LogManager:
 
         # Add console handler with colored output by default
         console_handler = logging.StreamHandler(sys.stderr)
-        formatter = ColoredFormatter() if self._use_colors else BaseFormatter()
+        formatter = TZFormatter(
+            '%(asctime)s [%(levelname)s] [%(target_name)s] %(message)s',
+            '%Y-%m-%d %H:%M:%S',
+            self._tz
+        )
         console_handler.setFormatter(formatter)
         root_logger.addHandler(console_handler)
 
@@ -85,7 +114,11 @@ class LogManager:
         # Add new file handler if specified
         if log_file:
             self._file_handler = logging.FileHandler(log_file)
-            self._file_handler.setFormatter(BaseFormatter())  # No colors in file
+            self._file_handler.setFormatter(TZFormatter(
+                '%(asctime)s [%(levelname)s] [%(target_name)s] %(message)s',
+                '%Y-%m-%d %H:%M:%S',
+                self._tz
+            ))  # No colors in file
             logging.getLogger().addHandler(self._file_handler)
             for logger in self._loggers.values():
                 logger.logger.addHandler(self._file_handler)
@@ -95,10 +128,15 @@ class LogManager:
             logger.logger.setLevel(log_level)
             for handler in logger.logger.handlers:
                 if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
-                    handler.setFormatter(ColoredFormatter() if use_colors else BaseFormatter())
-
-        # Update root logger
-        self._setup_root_logger()
+                    handler.setFormatter(TZFormatter(
+                        '%(asctime)s [%(levelname)s] [%(target_name)s] %(message)s',
+                        '%Y-%m-%d %H:%M:%S',
+                        self._tz
+                    ) if use_colors else TZFormatter(
+                        '%(asctime)s [%(levelname)s] [%(target_name)s] %(message)s',
+                        '%Y-%m-%d %H:%M:%S',
+                        self._tz
+                    ))
 
     def get_logger(self, name: str, target_name: str = 'SYSTEM') -> logging.LoggerAdapter:
         """
@@ -123,7 +161,11 @@ class LogManager:
             
             # Add console handler with colored output by default
             console_handler = logging.StreamHandler(sys.stderr)
-            formatter = ColoredFormatter(target_name) if self._use_colors else BaseFormatter(target_name)
+            formatter = TZFormatter(
+                '%(asctime)s [%(levelname)s] [%(target_name)s] %(message)s',
+                '%Y-%m-%d %H:%M:%S',
+                self._tz
+            )
             console_handler.setFormatter(formatter)
             logger.addHandler(console_handler)
 
@@ -146,24 +188,49 @@ class LogManager:
         Args:
             level: Logging level (e.g., logging.DEBUG, logging.INFO)
         """
-        # Set level for root logger
-        root_logger = logging.getLogger()
-        root_logger.setLevel(level)
-        
-        # Set level for all managed loggers
+        self._log_level = level
+        logging.getLogger().setLevel(level)
         for logger in self._loggers.values():
-            logger.logger.setLevel(level)
+            logger.setLevel(level)
+        
+        # Update console handler level
+        for handler in logging.getLogger().handlers:
+            if isinstance(handler, logging.StreamHandler) and handler.stream == sys.stdout:
+                handler.setLevel(level)
+
+    def set_timezone(self, tz: Optional[ZoneInfo] = None):
+        """Set timezone for log timestamps."""
+        self._tz = tz
+        # Update existing handlers
+        for logger in [logging.getLogger()] + list(self._loggers.values()):
+            if isinstance(logger, logging.LoggerAdapter):
+                logger = logger.logger
+            for handler in logger.handlers:
+                if isinstance(handler.formatter, TZFormatter):
+                    handler.formatter.tz = tz
 
     @property
     def system(self) -> logging.LoggerAdapter:
-        """
-        Get the system logger.
-
-        Returns:
-            System logger instance
-        """
-        return self.get_logger('SYSTEM')  # Use default target_name
-
+        """Get the system logger."""
+        # Create adapter if it doesn't exist
+        system_key = 'SYSTEM:SYSTEM'
+        if system_key not in self._loggers:
+            # Add console handler if none exists
+            if not self._system_logger.handlers:
+                handler = logging.StreamHandler()
+                formatter = TZFormatter(
+                    '%(asctime)s [%(levelname)s] [%(target_name)s] %(message)s',
+                    '%Y-%m-%d %H:%M:%S',
+                    self._tz
+                )
+                handler.setFormatter(formatter)
+                self._system_logger.addHandler(handler)
+            
+            # Create adapter
+            adapter = logging.LoggerAdapter(self._system_logger, {'target_name': 'SYSTEM'})
+            self._loggers[system_key] = adapter
+        
+        return self._loggers[system_key]
 
 class BaseFormatter(logging.Formatter):
     """Base formatter for all log messages."""

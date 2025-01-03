@@ -13,22 +13,25 @@ os.environ['CLICOLOR_FORCE'] = '1'
 import colorama
 colorama.init(autoreset=False, strip=False, convert=True, wrap=True)
 
-import sys
-import yaml
 import argparse
 import concurrent.futures
-from pathlib import Path
-from datetime import datetime
-from typing import Dict, Any, List, Optional, TypedDict
 import logging
+import os
+import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional, TypedDict, Any
 
-from core.ssh_utils import SSHManager
-from core.router_utils import RouterInfoManager
+import yaml
+from zoneinfo import ZoneInfo
+
 from core.backup_utils import BackupManager
-from core.notification_utils import NotificationManager
 from core.logging_utils import LogManager
+from core.notification_utils import NotificationManager
+from core.router_utils import RouterInfoManager
 from core.shell_utils import ColoredFormatter
-
+from core.ssh_utils import SSHManager
+from core.time_utils import get_timezone, get_timestamp
 
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
@@ -52,7 +55,7 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-class GlobalConfig(TypedDict):
+class GlobalConfig(TypedDict, total=False):
     """
     Type definition for global configuration.
 
@@ -63,6 +66,7 @@ class GlobalConfig(TypedDict):
         max_parallel: Maximum parallel backups
         notifications: Notification configuration
         ssh: SSH configuration
+        timezone: Optional timezone for timestamps (e.g. Europe/Berlin)
     """
     backup_path: str
     backup_password: str
@@ -70,6 +74,7 @@ class GlobalConfig(TypedDict):
     max_parallel: int
     notifications: Dict[str, Any]
     ssh: Dict[str, Any]
+    timezone: str
 
 
 class TargetConfig(TypedDict):
@@ -98,9 +103,26 @@ class TargetConfig(TypedDict):
     backup_password: Optional[str]
 
 
-def get_timestamp() -> str:
-    """Get current timestamp in backup file format."""
-    return datetime.now().strftime("%d%m%Y-%H%M%S")
+def get_timestamp(config: Optional[GlobalConfig] = None) -> str:
+    """
+    Get current timestamp in backup file format.
+    
+    Args:
+        config: Optional global config containing timezone setting
+        
+    Returns:
+        str: Formatted timestamp string
+    """
+    logger = LogManager().system
+    logger.debug(f"Getting timestamp with config: {config}")
+    
+    # Get timezone from config if available
+    tz = get_timezone(config.get('timezone') if config else None)
+    logger.debug(f"Using timezone: {tz}")
+    
+    # Generate timestamp in specified timezone
+    from core.time_utils import get_timestamp as get_tz_timestamp
+    return get_tz_timestamp(tz)
 
 
 def backup_target(
@@ -109,7 +131,8 @@ def backup_target(
     backup_password: str,
     notifier: NotificationManager,
     backup_path: Path,
-    dry_run: bool = False
+    dry_run: bool = False,
+    config: Optional[GlobalConfig] = None
 ) -> bool:
     """
     Backup a single target's configuration.
@@ -121,6 +144,7 @@ def backup_target(
         notifier: Notification manager
         backup_path: Path to store backups
         dry_run: If True, simulate operations
+        config: Optional global configuration
 
     Returns:
         bool: True if backup successful, False otherwise
@@ -164,7 +188,7 @@ def backup_target(
             return False
 
         # Prepare backup directory
-        timestamp = get_timestamp()
+        timestamp = get_timestamp(config)
         clean_version = backup_manager._clean_version_string(target_info['ros_version'])
         backup_dir = backup_path / f"{target_info['identity']}_{target['host']}_ROS{clean_version}_{target_info['architecture_name']}"
         os.makedirs(backup_dir, exist_ok=True)
@@ -254,7 +278,7 @@ def main() -> None:
     args = parse_arguments()
 
     # Set up logging first
-    setup_logging(args.log_file, not args.no_color)
+    setup_logging(args.log_file, args.log_level, not args.no_color)
     logger = LogManager().system
 
     try:
@@ -265,17 +289,42 @@ def main() -> None:
             sys.exit(1)
 
         with open(global_config_file) as f:
-            global_config = yaml.safe_load(f)
+            global_config_data = yaml.safe_load(f)
+            logger.debug(f"Loaded global config: {global_config_data}")
+            
+            # Convert to GlobalConfig TypedDict
+            global_config: GlobalConfig = {
+                'backup_path': global_config_data.get('backup_path_parent', 'backups'),
+                'backup_password': global_config_data.get('backup_password', ''),
+                'parallel_backups': global_config_data.get('parallel_execution', False),
+                'max_parallel': global_config_data.get('max_parallel_backups', 4),
+                'notifications': global_config_data.get('notifications', {}),
+                'ssh': global_config_data.get('ssh', {}),
+            }
+            # Add timezone if present
+            if 'timezone' in global_config_data:
+                logger.debug(f"Using configured timezone: {global_config_data['timezone']}")
+                global_config['timezone'] = global_config_data['timezone']
+            else:
+                logger.debug("No timezone configured, using system timezone")
+
+        # Configure timezone
+        if 'timezone' in global_config:
+            logger.debug(f"Using configured timezone: {global_config['timezone']}")
+            # Set timezone for logging
+            LogManager().set_timezone(get_timezone(global_config['timezone']))
+        else:
+            logger.debug("No timezone configured, using system timezone")
 
         # Set up backup directory
-        backup_path = Path(global_config.get('backup_path_parent', 'backups'))
+        backup_path = Path(global_config['backup_path'])
         os.makedirs(backup_path, exist_ok=True)
 
         # Initialize notification system
         notifier = NotificationManager(
-            enabled=global_config.get('notifications_enabled', False),
-            notify_on_failed=global_config.get('notify_on_failed_backups', True),
-            notify_on_success=global_config.get('notify_on_successful_backups', False),
+            enabled=global_config.get('notifications', {}).get('enabled', False),
+            notify_on_failed=global_config.get('notifications', {}).get('notify_on_failed_backups', True),
+            notify_on_success=global_config.get('notifications', {}).get('notify_on_successful_backups', False),
             smtp_config={
                 'enabled': global_config.get('smtp', {}).get('enabled', False),
                 'host': global_config.get('smtp', {}).get('host', 'localhost'),
@@ -318,15 +367,15 @@ def main() -> None:
         backup_password = global_config.get('backup_password', '')
 
         # Execute backups
-        parallel_backups = global_config.get('parallel_execution', False)
-        max_parallel = global_config.get('max_parallel_backups', 4)
+        parallel_backups = global_config.get('parallel_backups', False)
+        max_parallel = global_config.get('max_parallel', 4)
 
         if args.dry_run:
             logger.info("Running in dry-run mode - no changes will be made")
 
         if parallel_backups:
-            logger.info(f"[SYSTEM] Parallel execution enabled.")
-            logger.info(f"[SYSTEM] Max parallel backups set to: {max_parallel}")
+            logger.info(f"Parallel execution enabled.")
+            logger.info(f"Max parallel backups set to: {max_parallel}")
 
         successful_backups = 0
         failed_backups = 0
@@ -334,7 +383,7 @@ def main() -> None:
         if parallel_backups:
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel) as executor:
                 futures = [
-                    executor.submit(backup_target, target, ssh_args, backup_password, notifier, backup_path, args.dry_run)
+                    executor.submit(backup_target, target, ssh_args, backup_password, notifier, backup_path, args.dry_run, global_config)
                     for target in targets
                 ]
                 for future in concurrent.futures.as_completed(futures):
@@ -344,41 +393,50 @@ def main() -> None:
                         failed_backups += 1
         else:
             for target in targets:
-                if backup_target(target, ssh_args, backup_password, notifier, backup_path, args.dry_run):
+                if backup_target(target, ssh_args, backup_password, notifier, backup_path, args.dry_run, global_config):
                     successful_backups += 1
                 else:
                     failed_backups += 1
 
         elapsed_time = datetime.now() - start_time
         minutes, seconds = divmod(elapsed_time.seconds, 60)
-        
+
+        # Log completion
         if failed_backups == 0:
-            logger.info(f"[SYSTEM] Backup completed. Success: {successful_backups}, Failed: {failed_backups} [{minutes}m {seconds}s]")
+            logger.info(f"Backup completed. Success: {successful_backups}, Failed: {failed_backups} [{minutes}m {seconds}s]")
             sys.exit(0)
         else:
-            logger.error(f"[SYSTEM] Backup completed. Success: {successful_backups}, Failed: {failed_backups} [{minutes}m {seconds}s]")
+            logger.error(f"Backup completed. Success: {successful_backups}, Failed: {failed_backups} [{minutes}m {seconds}s]")
             sys.exit(1)
 
     except Exception as e:
         elapsed_time = datetime.now() - start_time
         minutes, seconds = divmod(elapsed_time.seconds, 60)
-        logger.error(f"[SYSTEM] Backup process failed: {str(e)} [{minutes}m {seconds}s]")
+        logger.error(f"Backup process failed: {str(e)} [{minutes}m {seconds}s]")
         sys.exit(1)
 
 
-def setup_logging(log_file: Optional[str], use_colors: bool = True) -> None:
+def setup_logging(log_file: Optional[str], log_level: str = 'INFO', use_colors: bool = True) -> None:
     """
     Set up logging configuration.
 
     Args:
         log_file: Optional log file path
+        log_level: Logging level (DEBUG, INFO, WARNING, ERROR)
         use_colors: Whether to use colors in console output
     """
-    LogManager().configure(
-        log_level=logging.INFO,
-        use_colors=use_colors,
-        log_file=log_file
-    )
+    log_manager = LogManager()
+    level = getattr(logging, log_level.upper())
+    log_manager.set_log_level(level)
+    
+    if log_file:
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setLevel(level)
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s [%(levelname)s] [%(target_name)s] %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        ))
+        log_manager.add_file_handler(file_handler)
 
 
 if __name__ == '__main__':

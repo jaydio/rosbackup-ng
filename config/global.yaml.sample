@@ -2,6 +2,7 @@
 backup_path_parent: backups
 backup_retention_days: 90
 backup_password: your-global-backup-password
+timezone: system  # Optional: Timezone for timestamps (e.g. Asia/Manila, Europe/Berlin). Default: system (uses system timezone)
 
 # SSH Settings
 ssh:

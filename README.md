@@ -201,6 +201,7 @@ The tool uses two YAML configuration files: `global.yaml` for general settings a
 backup_path_parent: backups
 backup_retention_days: 90
 backup_password: your-global-backup-password
+timezone: Asia/Manila
 
 # SSH Settings
 ssh:
@@ -254,9 +255,10 @@ smtp:
 #### Backup Settings
 | Parameter | Type | Default | Required | Overridable | Description |
 |-----------|------|---------|----------|-------------|-------------|
-| `backup_path_parent` | string | "backups" | No | No | Base directory for storing all router backups |
-| `backup_retention_days` | integer | 90 | Yes | Yes | Days to keep backups (-1 for infinite retention) |
-| `backup_password` | string | - | Yes | Yes | Default password for encrypted backups |
+| `backup_path_parent` | string | "backups" | Yes | No | Parent directory for backups |
+| `backup_retention_days` | integer | 90 | No | No | Days to keep backups |
+| `backup_password` | string | null | No | Yes | Global backup password |
+| `timezone` | string | system | No | No | Timezone for timestamps (e.g. Asia/Manila) |
 
 #### SSH Settings
 | Parameter | Type | Default | Required | Overridable | Description |

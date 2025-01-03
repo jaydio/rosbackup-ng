@@ -9,15 +9,13 @@ import paramiko
 from pathlib import Path
 from typing import Dict, Optional, Tuple, TypedDict, Any
 import logging
-from datetime import datetime
 import os
+import re
 from scp import SCPClient
 import time
-import re
 from .ssh_utils import SSHManager
 from .router_utils import RouterInfoManager
 from .logging_utils import LogManager
-
 
 class RouterInfo(TypedDict):
     """
