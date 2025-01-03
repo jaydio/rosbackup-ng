@@ -174,25 +174,24 @@ Password: Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8
 
 ### SSH Connection Failed
 
-1. Verify SSH service is enabled on the router:
+1. Verify firewall rules allow SSH access
+
+2. Verify SSH service is enabled on the router:
    ```
-   /ip service print
+   /ip/service/print
    ```
    Enable if needed:
    ```
-   /ip service enable ssh
+   /ip/service/enable ssh
    ```
 
-2. Check SSH port (default: 22):
-   ```
-   /ip service get ssh port
-   ```
-
-3. Verify firewall rules allow SSH access
-
-4. Test SSH connectivity:
+3. Test SSH connectivity:
    ```bash
-   ssh admin@192.168.1.1 -p 22
+   ssh admin@192.168.1.1
+   ```
+   Or with custom port:
+   ```bash
+   ssh -p 1234 admin@192.168.1.1
    ```
 
 ### Authentication Failed
