@@ -101,18 +101,24 @@ class RouterInfoManager:
                     return None
 
             # If architecture_name wasn't set by routerboard info, use system resource info
-            if "architecture_name" not in router_info and "architecture" in router_info:
-                arch = router_info["architecture"].lower()
-                if "arm" in arch:
-                    router_info["architecture_name"] = "arm64" if "64" in arch else "arm"
-                elif "mips" in arch:
+            if "architecture_name" not in router_info and "cpu" in router_info:
+                cpu = router_info["cpu"].lower()
+                if "arm" in cpu:
+                    router_info["architecture_name"] = "arm64" if "64" in cpu else "arm"
+                elif "mips" in cpu:
                     router_info["architecture_name"] = "mipsbe"
-                elif "x86" in arch:
-                    router_info["architecture_name"] = "x86_64" if "64" in arch else "x86"
-                elif "tile" in arch:
+                elif "x86" in cpu or "amd" in cpu:
+                    router_info["architecture_name"] = "x86_64" if "64" in cpu else "x86"
+                elif "tile" in cpu:
                     router_info["architecture_name"] = "tile"
                 else:
                     router_info["architecture_name"] = "x86_64"  # Default to most common
+                self.logger.debug(f"Mapped CPU {router_info['cpu']} to architecture {router_info['architecture_name']}")
+
+            # Make sure we have architecture_name
+            if "architecture_name" not in router_info:
+                self.logger.error("Could not determine architecture_name")
+                return None
 
             self.logger.debug(f"Router info: {router_info}")
             return router_info
