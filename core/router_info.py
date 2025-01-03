@@ -55,35 +55,55 @@ class RouterInfoManager:
         Get router information.
 
         Args:
-            ssh_client: Connected SSH client to the router
+            ssh_client: Connected SSH client
 
         Returns:
             Dict containing router information or None on error
         """
         try:
-            router_info = {}
-
             # Get system resource info
             stdout, stderr = self.ssh_manager.execute_command(ssh_client, "/system resource print")
             if stderr:
                 self.logger.error(f"Failed to get system resource info: {stderr}")
                 return None
-            router_info.update(self._parse_system_resource(stdout))
+
+            router_info = self._parse_system_resource(stdout)
+            if not router_info:
+                self.logger.error("Failed to parse system resource info")
+                return None
 
             # Get system identity
             stdout, stderr = self.ssh_manager.execute_command(ssh_client, "/system identity print")
             if stderr:
                 self.logger.error(f"Failed to get system identity: {stderr}")
                 return None
-            router_info.update(self._parse_system_identity(stdout))
+
+            identity_info = self._parse_system_identity(stdout)
+            if not identity_info:
+                self.logger.error("Failed to parse system identity")
+                return None
+            router_info.update(identity_info)
 
             # Get system routerboard info
             stdout, stderr = self.ssh_manager.execute_command(ssh_client, "/system routerboard print")
             if stderr:
                 self.logger.error(f"Failed to get routerboard info: {stderr}")
                 return None
-            router_info.update(self._parse_routerboard_info(stdout))
 
+            routerboard_info = self._parse_routerboard_info(stdout)
+            if not routerboard_info:
+                self.logger.error("Failed to parse routerboard info")
+                return None
+            router_info.update(routerboard_info)
+
+            # Make sure we have the required fields
+            required_fields = ["identity", "ros_version", "architecture_name"]
+            for field in required_fields:
+                if field not in router_info:
+                    self.logger.error(f"Missing required field: {field}")
+                    return None
+
+            self.logger.debug(f"Router info: {router_info}")
             return router_info
 
         except Exception as e:
