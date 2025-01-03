@@ -163,19 +163,6 @@ class SSHManager:
             - Connection loss detection
             - Command syntax errors
             - Execution permission issues
-
-        Example:
-            ```python
-            stdout, stderr = ssh_manager.execute_command(
-                client,
-                '/system resource print',
-                timeout=30
-            )
-            if stderr:
-                print(f"Error: {stderr}")
-            else:
-                print(f"Output: {stdout}")
-            ```
         """
         try:
             stdin, stdout, stderr = ssh_client.exec_command(command, timeout=timeout)
@@ -200,14 +187,11 @@ class SSHManager:
 
     def close_client(self, ssh_client: paramiko.SSHClient) -> None:
         """
-        Safely close an SSH client connection.
+        Close SSH connection and cleanup.
 
         Args:
             ssh_client: SSH client to close
         """
-        try:
-            if ssh_client:
-                ssh_client.close()
-                self.logger.debug("SSH connection closed")
-        except Exception as e:
-            self.logger.error(f"Error closing SSH connection: {str(e)}")
+        if ssh_client:
+            self.logger.debug("SSH connection closed")
+            ssh_client.close()

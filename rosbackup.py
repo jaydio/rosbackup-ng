@@ -194,8 +194,8 @@ def backup_router(
 
     # Initialize managers
     ssh_manager = SSHManager(ssh_args, logger)
-    router_info_manager = RouterInfoManager(ssh_manager)
-    backup_manager = BackupManager(ssh_manager, router_info_manager)
+    router_info_manager = RouterInfoManager(ssh_manager, logger)
+    backup_manager = BackupManager(ssh_manager, router_info_manager, logger)
 
     # Create SSH connection
     ssh_client = ssh_manager.create_client(

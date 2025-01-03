@@ -49,20 +49,21 @@ class BackupManager:
     Attributes:
         ssh_manager (SSHManager): Manages SSH connections to routers
         router_info_manager (RouterInfoManager): Handles router information retrieval
-        logger (logging.Logger): Logger instance for this class
+        logger (logging.LoggerAdapter): Logger instance for this class
     """
 
-    def __init__(self, ssh_manager: SSHManager, router_info_manager: RouterInfoManager) -> None:
+    def __init__(self, ssh_manager: SSHManager, router_info_manager: RouterInfoManager, logger: Optional[logging.LoggerAdapter] = None) -> None:
         """
         Initialize backup manager.
 
         Args:
             ssh_manager: Manages SSH connections and command execution
             router_info_manager: Handles router information gathering
+            logger: Optional logger adapter for router-specific logging
         """
         self.ssh_manager = ssh_manager
         self.router_info_manager = router_info_manager
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger or logging.getLogger(__name__)
 
     def perform_binary_backup(
         self,
