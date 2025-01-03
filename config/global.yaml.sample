@@ -6,13 +6,19 @@ backup_password: your-global-backup-password
 # SSH Settings
 ssh:
   user: rosbackup
-  timeout: 30  # Connection timeout in seconds
-  auth_timeout: 30  # Authentication timeout in seconds
+  timeout: 5  # Connection timeout in seconds
+  auth_timeout: 5  # Authentication timeout in seconds
   known_hosts_file: null  # Optional: Path to known_hosts file
   add_target_host_key: true  # Whether to automatically add target host keys
   args:
     look_for_keys: false
     allow_agent: false
+    compress: true  # Enable compression for better performance
+    auth_timeout: 5
+    channel_timeout: 5
+    disabled_algorithms: {}  # Optionally disable specific algorithms
+    keepalive_interval: 60  # Send keepalive every minute
+    keepalive_countmax: 3   # Disconnect after 3 failed keepalives
 
 # Performance Settings
 parallel_execution: true

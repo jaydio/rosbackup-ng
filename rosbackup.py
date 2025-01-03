@@ -296,7 +296,7 @@ def main():
         smtp_config=global_config.get('notifications', {}).get('smtp', {})
     )
 
-    ssh_args = global_config.get('ssh_args', {})
+    ssh_args = global_config.get('ssh', {})  # Changed from ssh_args to ssh
     backup_password = global_config.get('backup_password', '')
 
     success_count = 0

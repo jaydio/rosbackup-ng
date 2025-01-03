@@ -187,6 +187,13 @@ ssh:
   args:
     look_for_keys: false
     allow_agent: false
+    compress: true
+    auth_timeout: 30
+    channel_timeout: 30
+    disabled_algorithms:
+      pubkeys: ["rsa-sha1"]
+    keepalive_interval: 60
+    keepalive_countmax: 3
 
 # Performance Settings
 parallel_execution: true
@@ -229,19 +236,39 @@ smtp:
 #### SSH Settings
 | Parameter | Type | Default | Required | Overridable | Description |
 |-----------|------|---------|----------|-------------|-------------|
-| `ssh.user` | string | "rosbackup" | No | Yes | Default SSH username |
+| `ssh.user` | string | rosbackup | Yes | Yes | SSH username for authentication |
 | `ssh.timeout` | integer | 30 | No | Yes | Connection timeout in seconds |
 | `ssh.auth_timeout` | integer | 30 | No | Yes | Authentication timeout in seconds |
-| `ssh.known_hosts_file` | string | null | No | Yes | Optional path to known_hosts file |
-| `ssh.add_target_host_key` | boolean | true | No | Yes | Whether to automatically add target host keys |
-| `ssh.args` | object | {} | No | Yes | SSH connection arguments |
+| `ssh.known_hosts_file` | string | null | No | No | Path to SSH known_hosts file |
+| `ssh.add_target_host_key` | boolean | true | No | No | Auto-add unknown host keys |
+| `ssh.args.look_for_keys` | boolean | false | No | No | Search for discoverable private keys |
+| `ssh.args.allow_agent` | boolean | false | No | No | Allow connecting to ssh-agent |
+| `ssh.args.compress` | boolean | false | No | No | Enable transport layer compression |
+| `ssh.args.auth_timeout` | integer | 30 | No | No | Authentication response timeout |
+| `ssh.args.channel_timeout` | integer | 30 | No | No | Channel open timeout |
+| `ssh.args.disabled_algorithms` | object | {} | No | No | Dict of algorithms to disable |
+| `ssh.args.keepalive_interval` | integer | 60 | No | No | Seconds between keepalive packets |
+| `ssh.args.keepalive_countmax` | integer | 3 | No | No | Max keepalive failures before disconnect |
 
-The `ssh.args` object supports the following parameters (all overridable per target):
-
-| Parameter | Type | Default | Required | Description |
-|-----------|------|---------|----------|-------------|
-| `look_for_keys` | boolean | false | No | Search for discoverable private key files in ~/.ssh/ |
-| `allow_agent` | boolean | false | No | Allow connecting to ssh-agent |
+Example configuration with all SSH options:
+```yaml
+ssh:
+  user: rosbackup
+  timeout: 5  # Connection timeout
+  auth_timeout: 5  # Authentication timeout
+  known_hosts_file: null  # not saving known hosts to disk
+  add_target_host_key: true
+  args:
+    look_for_keys: false
+    allow_agent: false
+    compress: true  # Enable for slower connections
+    auth_timeout: 5
+    channel_timeout: 5
+    disabled_algorithms:
+      pubkeys: ["rsa-sha1"]  # Disable specific algorithms
+    keepalive_interval: 60  # Send keepalive every minute
+    keepalive_countmax: 3   # Disconnect after 3 failures
+```
 
 #### Performance Settings
 | Parameter | Type | Default | Required | Overridable | Description |

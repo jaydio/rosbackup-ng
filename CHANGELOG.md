@@ -2,6 +2,21 @@
 
 All notable changes to rosbackup-ng.
 
+## [Unreleased]
+
+### Added
+- Added support for additional SSH parameters:
+  - `compress`: Enable transport layer compression
+  - `auth_timeout`: Authentication response timeout
+  - `channel_timeout`: Channel open timeout
+  - `disabled_algorithms`: Dict of algorithms to disable
+  - `keepalive_interval`: Seconds between keepalive packets
+  - `keepalive_countmax`: Max keepalive failures before disconnect
+
+### Fixed
+- Fixed SSH configuration key from 'ssh_args' to 'ssh' to match documentation
+- Updated SSH timeout defaults to 5 seconds for faster failure detection
+
 ## [0.1.1] - 2025-01-03
 
 ### Improved
