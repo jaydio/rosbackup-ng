@@ -33,7 +33,7 @@ class NotificationConfig(TypedDict):
     smtp: SMTPConfig
 
 
-class Notifications:
+class NotificationManager:
     """
     Manages email notifications for backup operations.
     

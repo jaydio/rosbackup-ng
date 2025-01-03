@@ -189,7 +189,7 @@ def parse_arguments():
 
     # If no password or private key is provided, prompt for password
     if not args.ssh_user_password and not args.ssh_user_private_key:
-        args.ssh_user_password = get_password(f"Enter password for user '{args.ssh_user}': ")
+        args.ssh_user_password = get_password(f"Enter password for {args.ssh_user}@{args.host}: ")
 
     return args
 

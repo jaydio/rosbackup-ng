@@ -7,18 +7,34 @@ It supports encrypted backups, parallel execution, and various backup retention 
 
 import paramiko
 from pathlib import Path
-from typing import Dict, Optional, Tuple, TypedDict, Literal
+from typing import Dict, Optional, Tuple, TypedDict, Any
 import logging
 from datetime import datetime
 import os
 from scp import SCPClient
 import time
 from .ssh_utils import SSHManager
-from .router_info import RouterInfoManager
+from .router_utils import RouterInfoManager
+from .logging_utils import LogManager
 
 
 class RouterInfo(TypedDict):
-    """Type definition for router information dictionary."""
+    """
+    Type definition for router information dictionary.
+
+    Attributes:
+        identity: Router identity name
+        model: Router hardware model
+        ros_version: RouterOS version
+        architecture_name: CPU architecture name
+        cpu_name: CPU model name
+        cpu_count: Number of CPU cores
+        cpu_frequency: CPU frequency
+        total_memory: Total RAM
+        free_memory: Available RAM
+        free_hdd_space: Available disk space
+        license: License level
+    """
     identity: str
     model: str
     ros_version: str
@@ -33,7 +49,14 @@ class RouterInfo(TypedDict):
 
 
 class BackupResult(TypedDict):
-    """Type definition for backup operation result."""
+    """
+    Type definition for backup operation result.
+
+    Attributes:
+        success: Whether the backup operation succeeded
+        file_path: Path to the backup file if successful
+        error_message: Error message if backup failed
+    """
     success: bool
     file_path: Optional[Path]
     error_message: Optional[str]
@@ -49,21 +72,21 @@ class BackupManager:
     Attributes:
         ssh_manager (SSHManager): Manages SSH connections to routers
         router_info_manager (RouterInfoManager): Handles router information retrieval
-        logger (logging.LoggerAdapter): Logger instance for this class
+        logger (logging.Logger): Logger instance for this class
     """
 
-    def __init__(self, ssh_manager: SSHManager, router_info_manager: RouterInfoManager, logger: Optional[logging.LoggerAdapter] = None) -> None:
+    def __init__(self, ssh_manager: SSHManager, router_info_manager: RouterInfoManager, logger: Optional[logging.Logger] = None) -> None:
         """
         Initialize backup manager.
 
         Args:
             ssh_manager: Manages SSH connections and command execution
             router_info_manager: Handles router information gathering
-            logger: Optional logger adapter for router-specific logging
+            logger: Optional logger for router-specific logging
         """
         self.ssh_manager = ssh_manager
         self.router_info_manager = router_info_manager
-        self.logger = logger or logging.getLogger(__name__)
+        self.logger = logger or LogManager().system
 
     def perform_binary_backup(
         self,

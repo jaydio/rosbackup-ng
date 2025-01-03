@@ -1,365 +1,36 @@
 #!/usr/bin/env python3
 """
-rosbackup.py - Automated RouterOS Backup Tool
+RouterOS Backup Script.
 
-This script performs automated backups of RouterOS devices with features:
-- Binary (.backup) and plaintext (.rsc) backups
-- Parallel execution for multiple devices
-- SSH key-based authentication
-- Encrypted backups
-- Email notifications
-- Backup retention management
-
-Usage:
-    python3 rosbackup.py [OPTIONS]
-
-Required Options:
-    --config-dir DIR               Directory containing configuration files
-    --log-file FILE               Path to log file [default: no file logging]
-    --log-level LEVEL             Logging level (DEBUG,INFO,WARNING,ERROR) [default: INFO]
-    --no-color                    Disable colored output
-
-Optional Settings:
-    --dry-run                     Simulate operations without making changes
-
-Configuration File (YAML):
-    global:
-      ssh:
-        timeout: 30                # SSH connection timeout in seconds
-        auth_timeout: 30           # SSH authentication timeout in seconds
-        known_hosts_file: ~/.ssh/known_hosts
-        add_target_host_key: true  # Auto-add unknown host keys
-      
-      backup:
-        keep_binary_backup: false    # Keep binary backup on router
-        keep_plaintext_backup: false # Keep plaintext backup on router
-        encrypted: true             # Encrypt binary backups
-      
-      notification:
-        smtp:
-          enabled: false
-          host: smtp.example.com
-          port: 587
-          username: user@example.com
-          password: password
-          from_addr: user@example.com
-          to_addrs: [admin@example.com]
-          use_tls: true
-
-    routers:
-      - name: Router1
-        host: 192.168.1.1
-        port: 22
-        username: backup
-        private_key: ~/.ssh/backup_key
-
-Examples:
-    # Basic usage:
-    python3 rosbackup.py --config-dir config
-
-    # Dry run with debug logging:
-    python3 rosbackup.py --config-dir config --dry-run --log-level DEBUG --log-file /var/log/rosbackup.log
-
-Notes:
-    - The script requires Python 3.6 or later
-    - SSH keys must be unencrypted
-    - Backup paths are auto-created if they don't exist
-    - Log files are rotated automatically (max 5 files of 1MB each)
-    - Use --dry-run to validate configuration without making changes
+This script performs automated backups of RouterOS devices, supporting both
+binary and plaintext backups with encryption and parallel execution.
 """
 
+# Initialize colorama before any imports that might use colors
 import os
-import yaml
+os.environ['FORCE_COLOR'] = '1'
+os.environ['CLICOLOR_FORCE'] = '1'
+import colorama
+colorama.init(autoreset=False, strip=False, convert=True, wrap=True)
+
 import sys
-import logging
-from datetime import datetime
-from pathlib import Path
-from typing import List, Dict
+import yaml
 import argparse
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import concurrent.futures
+from pathlib import Path
+from datetime import datetime
+from typing import Dict, Any, List, Optional, TypedDict
+import logging
 
 from core.ssh_utils import SSHManager
-from core.router_info import RouterInfoManager
-from core.backup_operations import BackupManager
-from core.notifications import Notifications
+from core.router_utils import RouterInfoManager
+from core.backup_utils import BackupManager
+from core.notification_utils import NotificationManager
+from core.logging_utils import LogManager
+from core.shell_utils import ColoredFormatter
 
-class ColoredFormatter(logging.Formatter):
-    """Custom formatter adding colors to log levels."""
-    
-    green = "\x1b[32;20m"
-    yellow = "\x1b[33;20m"
-    red = "\x1b[31;20m"
-    reset = "\x1b[0m"
-    format_str = "%(asctime)s [%(levelname)s] [%(routername)s] %(message)s"
 
-    def __init__(self, use_colors=True):
-        """Initialize the formatter with color option."""
-        super().__init__()
-        self.use_colors = use_colors
-        self.FORMATS = {
-            logging.DEBUG: (self.yellow if self.use_colors else "") + self.format_str + (self.reset if self.use_colors else ""),
-            logging.INFO: (self.green if self.use_colors else "") + self.format_str + (self.reset if self.use_colors else ""),
-            logging.WARNING: (self.yellow if self.use_colors else "") + self.format_str + (self.reset if self.use_colors else ""),
-            logging.ERROR: (self.red if self.use_colors else "") + self.format_str + (self.reset if self.use_colors else ""),
-            logging.CRITICAL: (self.red if self.use_colors else "") + self.format_str + (self.reset if self.use_colors else "")
-        }
-
-    def format(self, record):
-        if not hasattr(record, 'routername'):
-            record.routername = '-'
-        log_fmt = self.FORMATS.get(record.levelno)
-        formatter = logging.Formatter(log_fmt, datefmt='%Y-%m-%d %H:%M:%S')
-        return formatter.format(record)
-
-class RouterLoggerAdapter(logging.LoggerAdapter):
-    """Adapter that adds router name to log records."""
-    
-    def process(self, msg, kwargs):
-        # Don't modify paramiko debug messages
-        if isinstance(msg, str) and msg.startswith(('DEB [', 'INF [', 'SSH exception')):
-            return msg, kwargs
-            
-        kwargs.setdefault('extra', {})['routername'] = self.extra['routername']
-        return msg, kwargs
-
-def setup_logging(log_file: str = None, log_level: str = 'INFO', use_colors: bool = True):
-    """Configure logging.
-    
-    Args:
-        log_file (str, optional): Path to log file. Defaults to None.
-        log_level (str, optional): Logging level. Defaults to 'INFO'.
-        use_colors (bool, optional): Whether to use colored output. Defaults to True.
-    """
-    # Set up root logger
-    root_logger = logging.getLogger()
-    root_logger.setLevel(getattr(logging, log_level.upper()))
-
-    # Remove existing handlers
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
-
-    # Create console handler with custom formatter
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(ColoredFormatter(use_colors))
-    root_logger.addHandler(console_handler)
-
-    # Add file handler if specified
-    if log_file:
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(ColoredFormatter(use_colors=False))
-        root_logger.addHandler(file_handler)
-
-    # Set Paramiko log level to match our level
-    logging.getLogger("paramiko").setLevel(getattr(logging, log_level.upper()))
-
-def load_config(config_path: Path) -> Dict:
-    """Load configuration file (YAML)."""
-    try:
-        with open(config_path, 'r') as f:
-            return yaml.safe_load(f)
-    except Exception as e:
-        logging.error(f"Failed to load config file {config_path}: {str(e)}")
-        raise
-
-def backup_router(
-    router: Dict,
-    global_config: Dict,
-    backup_path_parent: Path,
-    ssh_args: Dict,
-    backup_password: str,
-    notifier: Notifications,
-    logger: RouterLoggerAdapter,
-    dry_run: bool = False
-) -> bool:
-    """
-    Perform backup for a single router.
-
-    Args:
-        router (Dict): Router configuration
-        global_config (Dict): Global configuration
-        backup_path_parent (Path): Parent backup directory
-        ssh_args (Dict): SSH connection arguments
-        backup_password (str): Password for encrypted backups
-        notifier (Notifications): Notification manager
-        logger (RouterLoggerAdapter): Logger for the router
-        dry_run (bool): If True, simulate operations
-
-    Returns:
-        bool: True if backup successful, False otherwise
-    """
-    router_name = router.get('name', 'unknown')
-    
-    if dry_run:
-        logger.info(f"[DRY RUN] Would backup router: {router_name}")
-
-    # Initialize managers
-    ssh_manager = SSHManager(ssh_args, logger)
-    router_info_manager = RouterInfoManager(ssh_manager, logger)
-    backup_manager = BackupManager(ssh_manager, router_info_manager, logger)
-
-    # Create SSH connection
-    ssh_client = ssh_manager.create_client(
-        router['host'],
-        router.get('ssh_port', 22),
-        router['ssh_user'],
-        str(Path(router['private_key']))
-    )
-
-    if not ssh_client:
-        return False
-
-    try:
-        # Get router information
-        router_info = router_info_manager.get_router_info(ssh_client)
-        
-        # Create backup directory with router info, replacing spaces with underscores
-        ros_version = router_info['ros_version'].replace(' ', '')
-        router_dir = f"{router_info['identity']}-{router['host']}-ROS{ros_version}-{router_info['architecture_name']}"
-        timestamp = datetime.now().strftime('%d%m%Y-%H%M%S')
-        backup_dir = backup_path_parent / router_dir
-        if not dry_run:
-            os.makedirs(backup_dir, exist_ok=True)
-
-        success = True
-        backup_files = []
-
-        # Get router-specific settings with defaults
-        encrypted = router.get('encrypted', True)
-        enable_binary_backup = router.get('enable_binary_backup', True)
-        enable_plaintext_backup = router.get('enable_plaintext_backup', True)
-        keep_binary_backup = router.get('keep_binary_backup', False)
-        keep_plaintext_backup = router.get('keep_plaintext_backup', False)
-        router_backup_password = router.get('backup_password', backup_password)
-
-        # Perform binary backup if enabled
-        if enable_binary_backup:
-            binary_success, binary_file = backup_manager.perform_binary_backup(
-                ssh_client,
-                router_info,
-                router_backup_password,
-                encrypted,
-                backup_dir,
-                timestamp,
-                keep_binary_backup,
-                dry_run
-            )
-            success &= binary_success
-            if binary_file:
-                backup_files.append(binary_file)
-
-        # Perform plaintext backup if enabled
-        if enable_plaintext_backup:
-            plaintext_success, plaintext_file = backup_manager.perform_plaintext_backup(
-                ssh_client,
-                router_info,
-                backup_dir,
-                timestamp,
-                keep_plaintext_backup,
-                dry_run
-            )
-            success &= plaintext_success
-            if plaintext_file:
-                backup_files.append(plaintext_file)
-
-        # Save router information
-        info_success = backup_manager.save_info_file(
-            router_info,
-            backup_dir / f"{router_info['identity']}-{ros_version}-{router_info['architecture_name']}-{timestamp}.INFO.txt",
-            dry_run
-        )
-        success &= info_success
-
-        # Handle notifications
-        if not dry_run:
-            if success and notifier.notify_on_success:
-                notifier.notify_backup(router_name, router['host'], True, backup_files)
-            elif not success and notifier.notify_on_failed:
-                notifier.notify_backup(router_name, router['host'], False, backup_files)
-
-        return success
-
-    finally:
-        ssh_manager.close_client(ssh_client)
-
-def main():
-    """Main function to execute the backup process."""
-    args = parse_arguments()
-    setup_logging(args.log_file, args.log_level, not args.no_color)
-
-    # Create root logger adapter for non-router-specific logs
-    logger = RouterLoggerAdapter(logging.getLogger(__name__), {'routername': 'MAIN'})
-
-    try:
-        config_dir = Path(args.config_dir)
-        global_config_path = config_dir / "global.yaml"
-        targets_config_path = config_dir / "targets.yaml"
-
-        try:
-            global_config = load_config(global_config_path)
-            targets_config = load_config(targets_config_path)
-        except Exception as e:
-            logger.error(f"Failed to load configuration files: {str(e)}")
-            sys.exit(1)
-
-        backup_path = Path(global_config.get('backup_path', 'backups'))
-        if not args.dry_run:
-            os.makedirs(backup_path, exist_ok=True)
-
-        notifier = Notifications(
-            enabled=global_config.get('notifications', {}).get('enabled', False),
-            notify_on_failed=global_config.get('notifications', {}).get('notify_on_failed', True),
-            notify_on_success=global_config.get('notifications', {}).get('notify_on_success', False),
-            smtp_config=global_config.get('notifications', {}).get('smtp', {})
-        )
-
-        ssh_args = global_config.get('ssh', {})  # Changed from ssh_args to ssh
-        backup_password = global_config.get('backup_password', '')
-
-        success_count = 0
-        failure_count = 0
-
-        routers = targets_config['routers']
-        # Process routers in parallel
-        max_workers = min(len(routers), global_config.get('max_parallel_backups', 5))
-        if max_workers > 1:
-            logger.info("Parallel execution enabled.")
-            logger.info(f"Max parallel backups set to: {max_workers}")
-
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_router = {
-                executor.submit(
-                    backup_router,
-                    router,
-                    global_config,
-                    backup_path,
-                    ssh_args,
-                    backup_password,
-                    notifier,
-                    RouterLoggerAdapter(logging.getLogger(__name__), {'routername': router.get('name', 'unknown')}),
-                    args.dry_run
-                ): router for router in routers
-            }
-
-            for future in as_completed(future_to_router):
-                router = future_to_router[future]
-                try:
-                    if future.result():
-                        success_count += 1
-                    else:
-                        failure_count += 1
-                except Exception as e:
-                    logger.error(f"Router {router.get('name', 'unknown')} backup failed: {str(e)}")
-                    failure_count += 1
-
-        logger.info(f"Backup completed. Success: {success_count}, Failed: {failure_count}")
-        if failure_count > 0:
-            sys.exit(1)
-
-    except Exception as e:
-        logger.error(f"Error: {str(e)}")
-        sys.exit(1)
-
-def parse_arguments():
+def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description="Automated RouterOS backup utility",
@@ -380,5 +51,329 @@ def parse_arguments():
 
     return parser.parse_args()
 
-if __name__ == "__main__":
+
+class GlobalConfig(TypedDict):
+    """
+    Type definition for global configuration.
+
+    Attributes:
+        backup_path: Path to store backups
+        backup_password: Global backup password
+        parallel_backups: Enable parallel backups
+        max_parallel: Maximum parallel backups
+        notifications: Notification configuration
+        ssh: SSH configuration
+    """
+    backup_path: str
+    backup_password: str
+    parallel_backups: bool
+    max_parallel: int
+    notifications: Dict[str, Any]
+    ssh: Dict[str, Any]
+
+
+class TargetConfig(TypedDict):
+    """
+    Type definition for target configuration.
+
+    Attributes:
+        name: Target name
+        host: Hostname or IP address
+        port: SSH port
+        ssh_user: SSH username
+        private_key: Path to SSH private key
+        encrypted: Enable backup encryption
+        keep_binary_backup: Keep binary backup on target
+        keep_plaintext_backup: Keep plaintext backup on target
+        backup_password: Target-specific backup password
+    """
+    name: str
+    host: str
+    port: int
+    ssh_user: str
+    private_key: str
+    encrypted: bool
+    keep_binary_backup: bool
+    keep_plaintext_backup: bool
+    backup_password: Optional[str]
+
+
+def backup_target(
+    target: Dict[str, Any],
+    ssh_args: Dict[str, Any],
+    backup_password: str,
+    notifier: NotificationManager,
+    backup_path: Path,
+    dry_run: bool = False
+) -> bool:
+    """
+    Backup a single target's configuration.
+
+    Args:
+        target: Target configuration dictionary
+        ssh_args: SSH connection arguments
+        backup_password: Password for encrypted backups
+        notifier: Notification manager
+        backup_path: Path to store backups
+        dry_run: If True, simulate operations
+
+    Returns:
+        bool: True if backup successful, False otherwise
+
+    Error Handling:
+        - SSH connection failures
+        - Target information retrieval errors
+        - Backup creation and download issues
+        - File system operations
+        - Notification sending failures
+    """
+    # Get target-specific logger
+    logger = LogManager().get_logger('BACKUP', target.get('name', 'UNKNOWN'))
+
+    if dry_run:
+        logger.info(f"[DRY RUN] Would backup target: {target.get('name', 'UNKNOWN')}")
+        return True
+
+    # Initialize managers
+    ssh_manager = SSHManager(ssh_args, target.get('name', 'UNKNOWN'))
+    target_info_manager = RouterInfoManager(ssh_manager, target.get('name', 'UNKNOWN'))
+    backup_manager = BackupManager(ssh_manager, target_info_manager, logger)
+
+    try:
+        # Create SSH connection
+        ssh_client = ssh_manager.create_client(
+            target['host'],
+            target.get('port', 22),
+            target['ssh_user'],
+            str(Path(target['private_key']))
+        )
+
+        if not ssh_client:
+            logger.error(f"Failed to establish SSH connection to {target['host']}")
+            return False
+
+        # Get target information
+        target_info = target_info_manager.get_router_info(ssh_client)
+        if not target_info:
+            logger.error("Failed to retrieve target information")
+            return False
+
+        # Prepare backup directory
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        ros_version = target_info['ros_version'].split('.')[0]
+        backup_dir = backup_path / f"{target_info['identity']}-{target['host']}-ROS{ros_version}-{target_info['architecture_name']}"
+        os.makedirs(backup_dir, exist_ok=True)
+
+        success = True
+        backup_files = []
+
+        # Perform binary backup
+        keep_binary_backup = target.get('keep_binary_backup', True)
+        enable_binary_backup = target.get('enable_binary_backup', True)
+        if enable_binary_backup:
+            binary_success, binary_file = backup_manager.perform_binary_backup(
+                ssh_client,
+                target_info,
+                backup_password,
+                target.get('encrypted', False),
+                backup_dir,
+                timestamp,
+                keep_binary_backup,
+                dry_run
+            )
+            success &= binary_success
+            if binary_file:
+                backup_files.append(binary_file)
+
+        # Perform plaintext backup
+        keep_plaintext_backup = target.get('keep_plaintext_backup', True)
+        enable_plaintext_backup = target.get('enable_plaintext_backup', True)
+        if enable_plaintext_backup:
+            plaintext_success, plaintext_file = backup_manager.perform_plaintext_backup(
+                ssh_client,
+                target_info,
+                backup_dir,
+                timestamp,
+                keep_plaintext_backup,
+                dry_run
+            )
+            success &= plaintext_success
+            if plaintext_file:
+                backup_files.append(plaintext_file)
+
+        # Save target information
+        info_file = backup_dir / f"{target_info['identity']}-{ros_version}-{target_info['architecture_name']}-{timestamp}.INFO.txt"
+        info_success = backup_manager.save_info_file(target_info, info_file, dry_run)
+        success &= info_success
+
+        # Close SSH connection
+        ssh_client.close()
+        logger.debug("SSH connection closed")
+
+        # Send notification
+        if success:
+            notifier.notify_backup(target.get('name', 'UNKNOWN'), target['host'], True, [])
+        else:
+            notifier.notify_backup(target.get('name', 'UNKNOWN'), target['host'], False, ["Backup operation failed"])
+
+        return success
+
+    except Exception as e:
+        logger.error(f"Target {target.get('name', 'UNKNOWN')} backup failed: {str(e)}")
+        try:
+            notifier.notify_backup(target.get('name', 'UNKNOWN'), target['host'], False, [str(e)])
+        except Exception as notify_error:
+            logger.warning(f"Failed to send notification: {str(notify_error)}")
+        return False
+
+
+def main() -> None:
+    """
+    Main function to execute the backup process.
+
+    This function:
+    1. Parses command line arguments
+    2. Loads configuration files
+    3. Sets up logging and notifications
+    4. Executes backups (parallel or sequential)
+    5. Reports final status
+
+    Error Handling:
+        - Configuration file loading errors
+        - Invalid configuration values
+        - Parallel execution failures
+        - Individual target backup failures
+    """
+    start_time = datetime.now()
+    args = parse_arguments()
+
+    # Set up logging first
+    setup_logging(args.log_file, not args.no_color)
+    logger = LogManager().system
+
+    try:
+        # Load global configuration
+        global_config_file = Path(args.config_dir) / 'global.yaml'
+        if not global_config_file.exists():
+            logger.error(f"Global configuration file not found: {global_config_file}")
+            sys.exit(1)
+
+        with open(global_config_file) as f:
+            global_config = yaml.safe_load(f)
+
+        # Set up backup directory
+        backup_path = Path(global_config.get('backup_path_parent', 'backups'))
+        os.makedirs(backup_path, exist_ok=True)
+
+        # Initialize notification system
+        notifier = NotificationManager(
+            enabled=global_config.get('notifications_enabled', False),
+            notify_on_failed=global_config.get('notify_on_failed_backups', True),
+            notify_on_success=global_config.get('notify_on_successful_backups', False),
+            smtp_config={
+                'enabled': global_config.get('smtp', {}).get('enabled', False),
+                'host': global_config.get('smtp', {}).get('host', 'localhost'),
+                'port': global_config.get('smtp', {}).get('port', 25),
+                'username': global_config.get('smtp', {}).get('username'),
+                'password': global_config.get('smtp', {}).get('password'),
+                'from_email': global_config.get('smtp', {}).get('from_email'),
+                'to_emails': global_config.get('smtp', {}).get('to_emails', []),
+                'use_ssl': global_config.get('smtp', {}).get('use_ssl', False),
+                'use_tls': global_config.get('smtp', {}).get('use_tls', True)
+            }
+        )
+
+        # Load SSH configuration
+        ssh_config = global_config.get('ssh', {})
+        ssh_args = {
+            'timeout': ssh_config.get('timeout', 30),
+            'auth_timeout': ssh_config.get('auth_timeout', 30),
+            'known_hosts_file': ssh_config.get('known_hosts_file'),
+            'add_target_host_key': ssh_config.get('add_target_host_key', True),
+            'look_for_keys': ssh_config.get('args', {}).get('look_for_keys', False),
+            'allow_agent': ssh_config.get('args', {}).get('allow_agent', False)
+        }
+
+        # Load target configurations
+        targets_file = Path(args.config_dir) / 'targets.yaml'
+        if not targets_file.exists():
+            logger.error(f"Targets configuration file not found: {targets_file}")
+            sys.exit(1)
+
+        with open(targets_file) as f:
+            targets_config = yaml.safe_load(f)
+
+        targets = targets_config.get('targets', [])
+        if not targets:
+            logger.error("No targets found in targets file")
+            sys.exit(1)
+
+        # Get global backup password
+        backup_password = global_config.get('backup_password', '')
+
+        # Execute backups
+        parallel_backups = global_config.get('parallel_execution', False)
+        max_parallel = global_config.get('max_parallel_backups', 4)
+
+        if args.dry_run:
+            logger.info("Running in dry-run mode - no changes will be made")
+
+        if parallel_backups:
+            logger.info(f"[SYSTEM] Parallel execution enabled.")
+            logger.info(f"[SYSTEM] Max parallel backups set to: {max_parallel}")
+
+        successful_backups = 0
+        failed_backups = 0
+
+        if parallel_backups:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel) as executor:
+                futures = [
+                    executor.submit(backup_target, target, ssh_args, backup_password, notifier, backup_path, args.dry_run)
+                    for target in targets
+                ]
+                for future in concurrent.futures.as_completed(futures):
+                    if future.result():
+                        successful_backups += 1
+                    else:
+                        failed_backups += 1
+        else:
+            for target in targets:
+                if backup_target(target, ssh_args, backup_password, notifier, backup_path, args.dry_run):
+                    successful_backups += 1
+                else:
+                    failed_backups += 1
+
+        elapsed_time = datetime.now() - start_time
+        minutes, seconds = divmod(elapsed_time.seconds, 60)
+        
+        if failed_backups == 0:
+            logger.info(f"[SYSTEM] Backup completed. Success: {successful_backups}, Failed: {failed_backups} [{minutes}m {seconds}s]")
+            sys.exit(0)
+        else:
+            logger.error(f"[SYSTEM] Backup completed. Success: {successful_backups}, Failed: {failed_backups} [{minutes}m {seconds}s]")
+            sys.exit(1)
+
+    except Exception as e:
+        elapsed_time = datetime.now() - start_time
+        minutes, seconds = divmod(elapsed_time.seconds, 60)
+        logger.error(f"[SYSTEM] Backup process failed: {str(e)} [{minutes}m {seconds}s]")
+        sys.exit(1)
+
+
+def setup_logging(log_file: Optional[str], use_colors: bool = True) -> None:
+    """
+    Set up logging configuration.
+
+    Args:
+        log_file: Optional log file path
+        use_colors: Whether to use colors in console output
+    """
+    LogManager().configure(
+        log_level=logging.INFO,
+        use_colors=use_colors,
+        log_file=log_file
+    )
+
+
+if __name__ == '__main__':
     main()
