@@ -89,8 +89,9 @@ class ColoredFormatter(logging.Formatter):
     green = "\x1b[32;20m"
     yellow = "\x1b[33;20m"
     red = "\x1b[31;20m"
+    bold = "\x1b[1m"
     reset = "\x1b[0m"
-    format_str = "%(asctime)s [%(levelname)s] %(message)s"
+    format_str = "%(asctime)s [%(levelname)s]%(target_str)s %(message)s"
 
     def __init__(self, use_colors=True):
         """Initialize the formatter with color option."""
@@ -105,6 +106,13 @@ class ColoredFormatter(logging.Formatter):
         }
 
     def format(self, record):
+        """Format the log record with colors and target name."""
+        # Add target name if available in extra
+        if hasattr(record, 'target'):
+            record.target_str = f" [{self.bold if self.use_colors else ''}{record.target}{self.reset if self.use_colors else ''}]"
+        else:
+            record.target_str = ""
+            
         log_fmt = self.FORMATS.get(record.levelno)
         formatter = logging.Formatter(log_fmt, datefmt='%Y-%m-%d %H:%M:%S')
         return formatter.format(record)
@@ -167,12 +175,12 @@ def backup_router(
     Returns:
         bool: True if backup successful, False otherwise
     """
-    router_name = router.get('name', 'unknown')
+    logger = logging.LoggerAdapter(logging.getLogger(__name__), {'target': router['name']})
     if dry_run:
-        logging.info(f"[DRY RUN] Would backup router: {router_name}")
+        logger.info(f"[DRY RUN] Would backup router: {router['name']}")
 
     # Initialize managers
-    ssh_manager = SSHManager(ssh_args)
+    ssh_manager = SSHManager(ssh_args, router['name'])
     router_info_manager = RouterInfoManager(ssh_manager)
     backup_manager = BackupManager(ssh_manager, router_info_manager)
 
@@ -251,9 +259,9 @@ def backup_router(
         # Handle notifications
         if not dry_run:
             if success and notifier.notify_on_success:
-                notifier.notify_backup(router_name, router['host'], True, backup_files)
+                notifier.notify_backup(router['name'], router['host'], True, backup_files)
             elif not success and notifier.notify_on_failed:
-                notifier.notify_backup(router_name, router['host'], False, backup_files)
+                notifier.notify_backup(router['name'], router['host'], False, backup_files)
 
         return success
 
