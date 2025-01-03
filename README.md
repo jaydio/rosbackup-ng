@@ -190,7 +190,7 @@ ssh:
     compress: true
     auth_timeout: 30
     channel_timeout: 30
-    disabled_algorithms:
+    disabled_algorithms:  # Dict of algorithms to disable (see: https://docs.paramiko.org/en/stable/api/transport.html#paramiko.transport.Transport.disabled_algorithms)
       pubkeys: ["rsa-sha1"]
     keepalive_interval: 60
     keepalive_countmax: 3
@@ -264,7 +264,7 @@ ssh:
     compress: true  # Enable for slower connections
     auth_timeout: 5
     channel_timeout: 5
-    disabled_algorithms:
+    disabled_algorithms:  # Dict of algorithms to disable (see: https://docs.paramiko.org/en/stable/api/transport.html#paramiko.transport.Transport.disabled_algorithms)
       pubkeys: ["rsa-sha1"]  # Disable specific algorithms
     keepalive_interval: 60  # Send keepalive every minute
     keepalive_countmax: 3   # Disconnect after 3 failures
