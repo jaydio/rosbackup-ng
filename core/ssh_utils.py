@@ -10,6 +10,7 @@ import paramiko
 import logging
 from pathlib import Path
 from typing import Optional, Dict, Tuple, TypedDict, Union, Literal
+import socket
 
 
 class SSHConfig(TypedDict):
@@ -18,7 +19,7 @@ class SSHConfig(TypedDict):
     auth_timeout: int
     known_hosts_file: Optional[str]
     add_target_host_key: bool
-    args: Dict[str, bool]
+    args: Dict[str, Union[bool, int, Dict[str, list]]]  # Updated to support more complex args
 
 
 class CommandResult(TypedDict):
@@ -51,22 +52,15 @@ class SSHManager:
                 - auth_timeout: Authentication timeout in seconds
                 - known_hosts_file: Optional path to known_hosts file
                 - add_target_host_key: Whether to auto-add host keys
-                - args: Additional SSH arguments (look_for_keys, allow_agent)
-
-        Example:
-            ```python
-            ssh_args = {
-                'timeout': 30,
-                'auth_timeout': 30,
-                'known_hosts_file': '~/.ssh/known_hosts',
-                'add_target_host_key': True,
-                'args': {
-                    'look_for_keys': False,
-                    'allow_agent': False
-                }
-            }
-            ssh_manager = SSHManager(ssh_args)
-            ```
+                - args: Additional SSH arguments:
+                    - look_for_keys: Search for discoverable keys
+                    - allow_agent: Allow connecting to ssh-agent
+                    - compress: Enable transport compression
+                    - auth_timeout: Authentication response timeout
+                    - channel_timeout: Channel open timeout
+                    - disabled_algorithms: Dict of algorithms to disable
+                    - keepalive_interval: Seconds between keepalives
+                    - keepalive_countmax: Max keepalive failures
         """
         self.ssh_args = ssh_args
         self.logger = logging.getLogger(__name__)
@@ -96,75 +90,49 @@ class SSHManager:
 
         Returns:
             Connected SSH client or None if connection fails
-
-        Security:
-            - Verifies host keys if known_hosts_file is provided
-            - Optionally adds new host keys (controlled by add_target_host_key)
-            - Uses key-based authentication only
-            - Logs connection security parameters
-
-        Example:
-            ```python
-            client = ssh_manager.create_client(
-                host='192.168.1.1',
-                port=22,
-                username='admin',
-                key_path='~/.ssh/id_rsa'
-            )
-            if client:
-                # Use the client
-                ssh_manager.close_client(client)
-            ```
         """
-        self.logger.debug(f"Attempting SSH connection to {host}:{port}")
-        try:
-            ssh = paramiko.SSHClient()
-            
-            # Handle known hosts configuration
-            known_hosts_file = self.ssh_args.get('known_hosts_file')
-            if known_hosts_file:
-                try:
-                    ssh.load_host_keys(known_hosts_file)
-                except (FileNotFoundError, IOError) as e:
-                    self.logger.error(f"Failed to load known_hosts file '{known_hosts_file}': {str(e)}")
-                    return None
-                
-            # Configure host key policy
-            if self.ssh_args.get('add_target_host_key', True):
-                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            
-            try:
-                ssh.connect(
-                    hostname=host,
-                    port=port,
-                    username=username,
-                    key_filename=key_path,
-                    timeout=self.ssh_args.get('timeout', 30),
-                    auth_timeout=self.ssh_args.get('auth_timeout', 30)
-                )
-            except paramiko.AuthenticationException:
-                self.logger.error(f"Authentication failed for user '{username}'. Please verify the username and SSH key.")
-                return None
-            except paramiko.SSHException as e:
-                if "private key file is encrypted" in str(e).lower():
-                    self.logger.error(f"SSH key at {key_path} is encrypted. Please provide an unencrypted key.")
-                elif "not found in known_hosts" in str(e).lower():
-                    self.logger.error(f"Host key verification failed for {host}. Add the host key to your known_hosts file or set ssh.add_target_host_key to true.")
-                else:
-                    self.logger.error(f"SSH connection failed: {str(e)}")
-                return None
-            except Exception as e:
-                self.logger.error(f"Failed to establish SSH connection: {str(e)}")
-                return None
+        client = paramiko.SSHClient()
 
-            transport = ssh.get_transport()
+        if self.ssh_args['add_target_host_key']:
+            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        elif self.ssh_args['known_hosts_file']:
+            client.load_host_keys(self.ssh_args['known_hosts_file'])
+        else:
+            client.set_missing_host_key_policy(paramiko.RejectPolicy())
+
+        try:
+            # Set up SSH connection arguments
+            connect_args = {
+                'hostname': host,
+                'port': port,
+                'username': username,
+                'key_filename': key_path,
+                'timeout': self.ssh_args['timeout'],
+                'auth_timeout': self.ssh_args['auth_timeout'],
+                **self.ssh_args['args']  # Include all additional args
+            }
+
+            # Connect with the specified arguments
+            client.connect(**connect_args)
+            
+            # Configure keepalive if specified
+            if 'keepalive_interval' in self.ssh_args['args']:
+                client.get_transport().set_keepalive(
+                    self.ssh_args['args']['keepalive_interval'],
+                    self.ssh_args['args'].get('keepalive_countmax', 3)
+                )
+                
+            transport = client.get_transport()
             cipher = transport.remote_cipher
             mac = transport.remote_mac
             self.logger.info(f"SSH connection established with {host}:{port} using key-based authentication")
             self.logger.info(f"Connection secured with cipher {cipher} and MAC {mac}")
-            return ssh
-        except Exception as e:
-            self.logger.error(f"Failed to establish SSH connection to {host}:{port}: {str(e)}")
+            return client
+
+        except (paramiko.SSHException, socket.error) as e:
+            self.logger.error(f"Failed to connect to {host}: {str(e)}")
+            if client:
+                client.close()
             return None
 
     def execute_command(

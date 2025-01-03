@@ -4,6 +4,8 @@ All notable changes to rosbackup-ng.
 
 ## [Unreleased]
 
+## [0.1.2] - 2025-01-03
+
 ### Added
 - Added support for additional SSH parameters:
   - `compress`: Enable transport layer compression
