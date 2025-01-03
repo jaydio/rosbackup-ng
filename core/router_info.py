@@ -6,9 +6,10 @@ including hardware specifications, resource usage, and access validation.
 """
 
 import paramiko
-from typing import Dict, Optional, TypedDict, Literal
+from typing import Dict, Optional, TypedDict, Literal, Any
 import logging
 from .ssh_utils import SSHManager
+import re
 
 
 class RouterInfo(TypedDict):
@@ -38,73 +39,125 @@ class RouterInfoManager:
         logger (logging.Logger): Logger instance for this class
     """
 
-    def __init__(self, ssh_manager: SSHManager) -> None:
+    def __init__(self, ssh_manager: SSHManager, logger: Optional[logging.LoggerAdapter] = None) -> None:
         """
         Initialize RouterInfo manager.
 
         Args:
             ssh_manager: SSH manager instance for executing commands
+            logger: Optional logger adapter for router-specific logging
         """
         self.ssh_manager = ssh_manager
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger or logging.getLogger(__name__)
 
-    def get_router_info(self, ssh_client: paramiko.SSHClient) -> RouterInfo:
+    def get_router_info(self, ssh_client: paramiko.SSHClient) -> Optional[Dict[str, Any]]:
         """
-        Retrieve comprehensive router information.
-
-        Gathers system information including hardware specifications,
-        resource usage, and license details using RouterOS commands.
+        Get router information.
 
         Args:
             ssh_client: Connected SSH client to the router
 
         Returns:
-            Dictionary containing router information with keys:
-                - identity: Router's identity name
-                - model: Router's model name
-                - ros_version: RouterOS version (no "stable" suffix)
-                - architecture_name: Router's architecture
-                - cpu_name: CPU model name
-                - cpu_count: Number of CPU cores
-                - cpu_frequency: CPU frequency in MHz
-                - total_memory: Total memory in bytes
-                - free_memory: Free memory in bytes
-                - free_hdd_space: Free disk space in bytes
-                - license: RouterOS license level
-
-        Note:
-            Version string is cleaned by removing "(stable)" suffix.
-            Example: "7.16.2 (stable)" becomes "7.16.2"
-
-        Error Handling:
-            - Returns "Unknown" for failed command executions
-            - Logs debug information for troubleshooting
-            - Handles empty or invalid command outputs
+            Dict containing router information or None on error
         """
+        try:
+            router_info = {}
+
+            # Get system resource info
+            stdout, stderr = self.ssh_manager.execute_command(ssh_client, "/system resource print")
+            if stderr:
+                self.logger.error(f"Failed to get system resource info: {stderr}")
+                return None
+            router_info.update(self._parse_system_resource(stdout))
+
+            # Get system identity
+            stdout, stderr = self.ssh_manager.execute_command(ssh_client, "/system identity print")
+            if stderr:
+                self.logger.error(f"Failed to get system identity: {stderr}")
+                return None
+            router_info.update(self._parse_system_identity(stdout))
+
+            # Get system routerboard info
+            stdout, stderr = self.ssh_manager.execute_command(ssh_client, "/system routerboard print")
+            if stderr:
+                self.logger.error(f"Failed to get routerboard info: {stderr}")
+                return None
+            router_info.update(self._parse_routerboard_info(stdout))
+
+            return router_info
+
+        except Exception as e:
+            self.logger.error(f"Failed to get router info: {str(e)}")
+            return None
+
+    def _parse_system_resource(self, output: str) -> Dict[str, Any]:
+        """Parse system resource output."""
         info = {}
-        commands = {
-            'identity': ':put [/system identity get name]',
-            'model': ':put [/system resource get board-name]',
-            'ros_version': ':put [/system resource get version]',
-            'architecture_name': ':put [/system resource get architecture-name]',
-            'cpu_name': ':put [/system resource get cpu-name]',
-            'cpu_count': ':put [/system resource get cpu-count]',
-            'cpu_frequency': ':put [/system resource get cpu-frequency]',
-            'total_memory': ':put [/system resource get total-memory]',
-            'free_memory': ':put [/system resource get free-memory]',
-            'free_hdd_space': ':put [/system resource get free-hdd-space]',
-            'license': ':put [/system license get level]'
-        }
+        for line in output.splitlines():
+            if ":" in line:
+                key, value = line.split(":", 1)
+                key = key.strip().lower().replace(" ", "_")
+                value = value.strip()
+                info[key] = value
 
-        for key, command in commands.items():
-            stdout, _ = self.ssh_manager.execute_command(ssh_client, command)
-            if key == 'ros_version' and stdout:
-                # Strip the (stable) part from version
-                stdout = stdout.split(' ')[0]
-            info[key] = stdout if stdout else 'Unknown'
+        # Extract version components
+        if "version" in info:
+            version_match = re.match(r"(\d+\.\d+\.\d+)(?:-(\w+))?", info["version"])
+            if version_match:
+                info["ros_version"] = version_match.group(1)
+                info["ros_channel"] = version_match.group(2) or "stable"
 
-        self.logger.debug(f"Retrieved router information: {info}")
         return info
+
+    def _parse_system_identity(self, output: str) -> Dict[str, Any]:
+        """Parse system identity output."""
+        info = {}
+        for line in output.splitlines():
+            if "name:" in line.lower():
+                info["identity"] = line.split(":", 1)[1].strip()
+                break
+        return info
+
+    def _parse_routerboard_info(self, output: str) -> Dict[str, Any]:
+        """Parse routerboard info output."""
+        info = {}
+        for line in output.splitlines():
+            if ":" in line:
+                key, value = line.split(":", 1)
+                key = key.strip().lower().replace(" ", "_")
+                value = value.strip()
+                info[key] = value
+
+        # Map model-specific info
+        if "model" in info:
+            info["architecture_name"] = self._get_architecture_name(info["model"])
+
+        return info
+
+    def _get_architecture_name(self, model: str) -> str:
+        """Get architecture name based on model."""
+        model = model.lower()
+        
+        # Cloud Core Router series
+        if "ccr" in model:
+            if any(x in model for x in ["1009", "1016", "1036"]):
+                return "arm64"
+            return "tile"
+            
+        # Cloud Router Switch series
+        if "crs" in model:
+            if "crs3" in model:
+                return "arm64"
+            return "mipsbe"
+            
+        # hAP series
+        if "hap" in model:
+            if "ac" in model or "ax" in model:
+                return "arm"
+            return "mipsbe"
+            
+        # Default to most common architecture
+        return "x86_64"
 
     def get_backup_size(self, ssh_client: paramiko.SSHClient, backup_file: str) -> Optional[int]:
         """
