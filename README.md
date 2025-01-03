@@ -167,6 +167,56 @@ For detailed setup instructions and configuration guide, see:
 
 ## Configuration
 
+The tool uses two YAML configuration files: `global.yaml` for general settings and `targets.yaml` for router-specific configurations.
+
+### Example Global Configuration
+
+```yaml
+# Backup Settings
+backup_path_parent: backups
+backup_retention_days: 90
+backup_password: your-global-backup-password
+
+# SSH Settings
+ssh:
+  user: rosbackup
+  timeout: 30
+  auth_timeout: 30
+  known_hosts_file: null
+  add_target_host_key: true
+  args:
+    look_for_keys: false
+    allow_agent: false
+
+# Performance Settings
+parallel_execution: true
+max_parallel_backups: 5
+
+# Logging Settings
+log_file_enabled: true
+log_file: ./rosbackup.log
+log_level: INFO
+log_retention_days: 90
+
+# Notification Settings
+notifications_enabled: true
+notify_on_failed_backups: true
+notify_on_successful_backups: false
+
+# SMTP Settings
+smtp:
+  enabled: true
+  host: smtp.example.com
+  port: 587
+  username: notifications@example.com
+  password: your-smtp-password
+  from_email: notifications@example.com
+  to_emails: 
+    - admin@example.com
+  use_tls: true
+  use_ssl: false
+```
+
 ### Global Configuration Parameters
 
 #### Backup Settings
@@ -231,6 +281,35 @@ The `ssh.args` object supports the following parameters (all overridable per tar
 
 Each router in the `routers` array supports the following parameters:
 
+#### Example Configuration
+```yaml
+routers:
+  - name: MYR1
+    enabled: true
+    host: 192.168.88.1
+    ssh_port: 22
+    ssh_user: rosbackup
+    private_key: ./ssh-keys/private/id_rosbackup
+    backup_password: SpecificPassword  # Override global backup password
+    backup_retention_days: -1          # Keep backups indefinitely
+    encrypted: true
+    enable_binary_backup: true
+    enable_plaintext_backup: true
+    keep_binary_backup: false          # Remove after successful upload
+    keep_plaintext_backup: false       # Remove after successful upload
+
+  - name: MYR2
+    enabled: true
+    host: 192.168.88.2
+    ssh_port: 22
+    ssh_user: rosbackup
+    private_key: ./ssh-keys/private/id_rosbackup
+    encrypted: false                   # Use global backup settings
+    enable_binary_backup: true
+    enable_plaintext_backup: false     # Skip plaintext backups
+```
+
+#### Parameters
 | Parameter | Type | Default | Required | Description |
 |-----------|------|---------|----------|-------------|
 | `name` | string | - | Yes | Unique identifier for the router |
