@@ -34,7 +34,7 @@ class RouterInfo(TypedDict):
     build_time: str
     free_memory: str
     total_memory: str
-    cpu: str
+    cpu_name: str
     cpu_count: str
     cpu_frequency: str
     cpu_load: str
@@ -44,13 +44,12 @@ class RouterInfo(TypedDict):
     write_sect_total: str
     bad_blocks: str
     architecture_name: str
-    board_name: str
     platform: str
     
     # License
     software_id: str
     upgradable_to: str
-    nlevel: str
+    license: str
     features: str
     ros_version: str
 
@@ -138,7 +137,7 @@ class RouterInfoManager:
                 'build_time': resource_info.get('build-time', 'unknown'),
                 'free_memory': resource_info.get('free-memory', 'unknown'),
                 'total_memory': resource_info.get('total-memory', 'unknown'),
-                'cpu': resource_info.get('cpu', 'unknown'),
+                'cpu_name': resource_info.get('cpu', 'unknown'),
                 'cpu_count': resource_info.get('cpu-count', 'unknown'),
                 'cpu_frequency': resource_info.get('cpu-frequency', 'unknown'),
                 'cpu_load': resource_info.get('cpu-load', 'unknown'),
@@ -153,7 +152,7 @@ class RouterInfoManager:
                 # License
                 'software_id': license_info.get('software-id', 'unknown'),
                 'upgradable_to': license_info.get('upgradable-to', 'unknown'),
-                'nlevel': license_info.get('nlevel', 'unknown'),
+                'license': license_info.get('nlevel', 'unknown'),
                 'features': license_info.get('features', 'unknown'),
                 
                 # For compatibility

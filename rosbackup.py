@@ -24,6 +24,7 @@ from typing import Dict, List, Optional, TypedDict, Any
 
 import yaml
 from zoneinfo import ZoneInfo
+from tzlocal import get_localzone
 
 from core.backup_utils import BackupManager
 from core.logging_utils import LogManager
@@ -31,7 +32,7 @@ from core.notification_utils import NotificationManager
 from core.router_utils import RouterInfoManager
 from core.shell_utils import ColoredFormatter
 from core.ssh_utils import SSHManager
-from core.time_utils import get_timezone, get_timestamp
+from core.time_utils import get_timezone, get_system_timezone, get_current_time
 
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
@@ -117,12 +118,16 @@ def get_timestamp(config: Optional[GlobalConfig] = None) -> str:
     logger.debug(f"Getting timestamp with config: {config}")
     
     # Get timezone from config if available
-    tz = get_timezone(config.get('timezone') if config else None)
+    tz = get_timezone(config['timezone'] if config and 'timezone' in config else None)
     logger.debug(f"Using timezone: {tz}")
     
     # Generate timestamp in specified timezone
-    from core.time_utils import get_timestamp as get_tz_timestamp
-    return get_tz_timestamp(tz)
+    current_time = get_current_time()
+    if tz:
+        current_time = current_time.astimezone(tz)
+    
+    # Format timestamp
+    return current_time.strftime("%d%m%Y-%H%M%S")
 
 
 def backup_target(
@@ -277,144 +282,137 @@ def main() -> None:
     start_time = datetime.now()
     args = parse_arguments()
 
-    # Set up logging first
-    setup_logging(args.log_file, args.log_level, not args.no_color)
+    # Load global configuration first to get timezone
+    global_config_file = Path(args.config_dir) / 'global.yaml'
+    if not global_config_file.exists():
+        print(f"Global configuration file not found: {global_config_file}")
+        sys.exit(1)
+
+    with open(global_config_file) as f:
+        global_config_data = yaml.safe_load(f)
+        
+    # Configure timezone before setting up logging
+    if 'timezone' in global_config_data:
+        os.environ['TZ'] = global_config_data['timezone']
+
+    # Set up logging with correct timezone
+    setup_logging(
+        log_file=args.log_file,
+        log_level=args.log_level,
+        use_colors=not args.no_color
+    )
     logger = LogManager().system
+        
+    # Convert to GlobalConfig TypedDict
+    global_config: GlobalConfig = {
+        'backup_path': global_config_data.get('backup_path_parent', 'backups'),
+        'backup_password': global_config_data.get('backup_password', ''),
+        'parallel_backups': global_config_data.get('parallel_execution', False),
+        'max_parallel': global_config_data.get('max_parallel_backups', 4),
+        'notifications': global_config_data.get('notifications', {}),
+        'ssh': global_config_data.get('ssh', {}),
+    }
+    
+    # Handle timezone
+    if 'timezone' in global_config_data:
+        system_tz = get_system_timezone()
+        logger.info(f"Using timezone: {global_config_data['timezone']} (System: {system_tz})")
+        global_config['timezone'] = global_config_data['timezone']
+        # Set timezone for logging
+        LogManager().set_timezone(get_timezone(global_config['timezone']))
 
-    try:
-        # Load global configuration
-        global_config_file = Path(args.config_dir) / 'global.yaml'
-        if not global_config_file.exists():
-            logger.error(f"Global configuration file not found: {global_config_file}")
-            sys.exit(1)
+    logger.debug(f"Loaded global config: {global_config_data}")
+        
+    # Set up backup directory
+    backup_path = Path(global_config['backup_path'])
+    os.makedirs(backup_path, exist_ok=True)
 
-        with open(global_config_file) as f:
-            global_config_data = yaml.safe_load(f)
-            logger.debug(f"Loaded global config: {global_config_data}")
-            
-            # Convert to GlobalConfig TypedDict
-            global_config: GlobalConfig = {
-                'backup_path': global_config_data.get('backup_path_parent', 'backups'),
-                'backup_password': global_config_data.get('backup_password', ''),
-                'parallel_backups': global_config_data.get('parallel_execution', False),
-                'max_parallel': global_config_data.get('max_parallel_backups', 4),
-                'notifications': global_config_data.get('notifications', {}),
-                'ssh': global_config_data.get('ssh', {}),
-            }
-            # Add timezone if present
-            if 'timezone' in global_config_data:
-                logger.debug(f"Using configured timezone: {global_config_data['timezone']}")
-                global_config['timezone'] = global_config_data['timezone']
-            else:
-                logger.debug("No timezone configured, using system timezone")
-
-        # Configure timezone
-        if 'timezone' in global_config:
-            logger.debug(f"Using configured timezone: {global_config['timezone']}")
-            # Set timezone for logging
-            LogManager().set_timezone(get_timezone(global_config['timezone']))
-        else:
-            logger.debug("No timezone configured, using system timezone")
-
-        # Set up backup directory
-        backup_path = Path(global_config['backup_path'])
-        os.makedirs(backup_path, exist_ok=True)
-
-        # Initialize notification system
-        notifier = NotificationManager(
-            enabled=global_config.get('notifications', {}).get('enabled', False),
-            notify_on_failed=global_config.get('notifications', {}).get('notify_on_failed_backups', True),
-            notify_on_success=global_config.get('notifications', {}).get('notify_on_successful_backups', False),
-            smtp_config={
-                'enabled': global_config.get('smtp', {}).get('enabled', False),
-                'host': global_config.get('smtp', {}).get('host', 'localhost'),
-                'port': global_config.get('smtp', {}).get('port', 25),
-                'username': global_config.get('smtp', {}).get('username'),
-                'password': global_config.get('smtp', {}).get('password'),
-                'from_email': global_config.get('smtp', {}).get('from_email'),
-                'to_emails': global_config.get('smtp', {}).get('to_emails', []),
-                'use_ssl': global_config.get('smtp', {}).get('use_ssl', False),
-                'use_tls': global_config.get('smtp', {}).get('use_tls', True)
-            }
-        )
-
-        # Load SSH configuration
-        ssh_config = global_config.get('ssh', {})
-        ssh_args = {
-            'timeout': ssh_config.get('timeout', 30),
-            'auth_timeout': ssh_config.get('auth_timeout', 30),
-            'known_hosts_file': ssh_config.get('known_hosts_file'),
-            'add_target_host_key': ssh_config.get('add_target_host_key', True),
-            'look_for_keys': ssh_config.get('args', {}).get('look_for_keys', False),
-            'allow_agent': ssh_config.get('args', {}).get('allow_agent', False)
+    # Initialize notification system
+    notifier = NotificationManager(
+        enabled=global_config['notifications'].get('enabled', False),
+        notify_on_failed=global_config['notifications'].get('notify_on_failed_backups', True),
+        notify_on_success=global_config['notifications'].get('notify_on_successful_backups', False),
+        smtp_config={
+            'enabled': global_config['notifications'].get('smtp', {}).get('enabled', False),
+            'host': global_config['notifications'].get('smtp', {}).get('host', 'localhost'),
+            'port': global_config['notifications'].get('smtp', {}).get('port', 25),
+            'username': global_config['notifications'].get('smtp', {}).get('username'),
+            'password': global_config['notifications'].get('smtp', {}).get('password'),
+            'from_email': global_config['notifications'].get('smtp', {}).get('from_email'),
+            'to_emails': global_config['notifications'].get('smtp', {}).get('to_emails', []),
+            'use_ssl': global_config['notifications'].get('smtp', {}).get('use_ssl', False),
+            'use_tls': global_config['notifications'].get('smtp', {}).get('use_tls', True)
         }
+    )
 
-        # Load target configurations
-        targets_file = Path(args.config_dir) / 'targets.yaml'
-        if not targets_file.exists():
-            logger.error(f"Targets configuration file not found: {targets_file}")
-            sys.exit(1)
+    # Load SSH configuration
+    ssh_config = global_config['ssh']
+    ssh_args = {
+        'timeout': ssh_config.get('timeout', 30),
+        'auth_timeout': ssh_config.get('auth_timeout', 30),
+        'banner_timeout': ssh_config.get('banner_timeout', 60),
+        'transport_factory': ssh_config.get('transport_factory', None)
+    }
 
-        with open(targets_file) as f:
-            targets_config = yaml.safe_load(f)
+    # Load target configurations
+    targets_file = Path(args.config_dir) / 'targets.yaml'
+    if not targets_file.exists():
+        logger.error(f"Targets configuration file not found: {targets_file}")
+        sys.exit(1)
 
-        targets = targets_config.get('targets', [])
-        if not targets:
-            logger.error("No targets found in targets file")
-            sys.exit(1)
+    with open(targets_file) as f:
+        targets_config = yaml.safe_load(f)
 
-        # Get global backup password
-        backup_password = global_config.get('backup_password', '')
+    targets = targets_config.get('targets', [])
+    if not targets:
+        logger.error("No targets found in targets file")
+        sys.exit(1)
 
-        # Execute backups
-        parallel_backups = global_config.get('parallel_backups', False)
-        max_parallel = global_config.get('max_parallel', 4)
+    # Get global backup password
+    backup_password = global_config.get('backup_password', '')
 
-        if args.dry_run:
-            logger.info("Running in dry-run mode - no changes will be made")
+    # Execute backups
+    parallel_backups = global_config.get('parallel_backups', False)
+    max_parallel = global_config.get('max_parallel', 4)
 
-        if parallel_backups:
-            logger.info(f"Parallel execution enabled.")
-            logger.info(f"Max parallel backups set to: {max_parallel}")
+    if args.dry_run:
+        logger.info("Running in dry-run mode - no changes will be made")
 
-        successful_backups = 0
-        failed_backups = 0
+    if parallel_backups:
+        logger.info(f"Parallel execution enabled.")
+        logger.info(f"Max parallel backups set to: {max_parallel}")
 
-        if parallel_backups:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel) as executor:
-                futures = [
-                    executor.submit(backup_target, target, ssh_args, backup_password, notifier, backup_path, args.dry_run, global_config)
-                    for target in targets
-                ]
-                for future in concurrent.futures.as_completed(futures):
-                    if future.result():
-                        successful_backups += 1
-                    else:
-                        failed_backups += 1
-        else:
-            for target in targets:
-                if backup_target(target, ssh_args, backup_password, notifier, backup_path, args.dry_run, global_config):
+    successful_backups = 0
+    failed_backups = 0
+
+    if parallel_backups:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_parallel) as executor:
+            futures = [
+                executor.submit(backup_target, target, ssh_args, backup_password, notifier, backup_path, args.dry_run, global_config)
+                for target in targets
+            ]
+            for future in concurrent.futures.as_completed(futures):
+                if future.result():
                     successful_backups += 1
                 else:
                     failed_backups += 1
+    else:
+        for target in targets:
+            if backup_target(target, ssh_args, backup_password, notifier, backup_path, args.dry_run, global_config):
+                successful_backups += 1
+            else:
+                failed_backups += 1
 
-        elapsed_time = datetime.now() - start_time
-        minutes, seconds = divmod(elapsed_time.seconds, 60)
+    elapsed_time = datetime.now() - start_time
+    minutes, seconds = divmod(elapsed_time.seconds, 60)
 
-        # Log completion
-        if failed_backups == 0:
-            logger.info(f"Backup completed. Success: {successful_backups}, Failed: {failed_backups} [{minutes}m {seconds}s]")
-            sys.exit(0)
-        else:
-            logger.error(f"Backup completed. Success: {successful_backups}, Failed: {failed_backups} [{minutes}m {seconds}s]")
-            sys.exit(1)
-
-    except Exception as e:
-        elapsed_time = datetime.now() - start_time
-        minutes, seconds = divmod(elapsed_time.seconds, 60)
-        logger.error(f"Backup process failed: {str(e)} [{minutes}m {seconds}s]")
+    # Log completion
+    if failed_backups == 0:
+        logger.info(f"Backup completed. Success: {successful_backups}, Failed: {failed_backups} [{minutes}m {seconds}s]")
+        sys.exit(0)
+    else:
+        logger.error(f"Backup completed. Success: {successful_backups}, Failed: {failed_backups} [{minutes}m {seconds}s]")
         sys.exit(1)
-
 
 def setup_logging(log_file: Optional[str], log_level: str = 'INFO', use_colors: bool = True) -> None:
     """
@@ -432,9 +430,9 @@ def setup_logging(log_file: Optional[str], log_level: str = 'INFO', use_colors: 
     if log_file:
         file_handler = logging.FileHandler(log_file)
         file_handler.setLevel(level)
-        file_handler.setFormatter(logging.Formatter(
+        file_handler.setFormatter(TZFormatter(
             '%(asctime)s [%(levelname)s] [%(target_name)s] %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
+            '%Y-%m-%d %H:%M:%S'
         ))
         log_manager.add_file_handler(file_handler)
 

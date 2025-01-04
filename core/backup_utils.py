@@ -349,39 +349,29 @@ class BackupManager:
                 # System Information
                 f.write("System Information\n")
                 f.write("=================\n")
-                f.write(f"Name: {router_info.get('name', 'unknown')}\n")
-                f.write(f"RouterOS Version: {router_info.get('version', 'unknown')}\n")
-                f.write(f"Build Time: {router_info.get('build_time', 'unknown')}\n")
-                f.write(f"Uptime: {router_info.get('uptime', 'unknown')}\n\n")
+                f.write(f"Name: {router_info['identity']}\n")
+                f.write(f"RouterOS Version: {router_info['ros_version']}\n")
+                f.write(f"Model: {router_info['model']}\n")
+                f.write(f"Architecture: {router_info['architecture_name']}\n\n")
 
                 # Hardware Information
                 f.write("Hardware Information\n")
                 f.write("===================\n")
-                f.write(f"Model: {router_info.get('model', 'unknown')}\n")
-                f.write(f"Serial Number: {router_info.get('serial_number', 'unknown')}\n")
-                f.write(f"Architecture: {router_info.get('architecture_name', 'unknown')}\n")
-                f.write(f"Platform: {router_info.get('platform', 'unknown')}\n")
-                f.write(f"CPU: {router_info.get('cpu', 'unknown')}\n")
-                f.write(f"CPU Count: {router_info.get('cpu_count', 'unknown')}\n")
-                f.write(f"CPU Frequency: {router_info.get('cpu_frequency', 'unknown')}\n\n")
+                f.write(f"CPU: {router_info['cpu_name']}\n")
+                f.write(f"CPU Count: {router_info['cpu_count']}\n")
+                f.write(f"CPU Frequency: {router_info['cpu_frequency']}\n\n")
 
                 # System Resources
                 f.write("System Resources\n")
                 f.write("===============\n")
-                f.write(f"Total Memory: {router_info.get('total_memory', 'unknown')}\n")
-                f.write(f"Free Memory: {router_info.get('free_memory', 'unknown')}\n")
-                f.write(f"Total Storage: {router_info.get('total_hdd_space', 'unknown')}\n")
-                f.write(f"Free Storage: {router_info.get('free_hdd_space', 'unknown')}\n")
-                f.write(f"CPU Load: {router_info.get('cpu_load', 'unknown')}\n")
-                f.write(f"Bad Blocks: {router_info.get('bad_blocks', 'unknown')}\n\n")
+                f.write(f"Total Memory: {router_info['total_memory']}\n")
+                f.write(f"Free Memory: {router_info['free_memory']}\n")
+                f.write(f"Free Storage: {router_info['free_hdd_space']}\n\n")
 
                 # License Information
                 f.write("License Information\n")
                 f.write("==================\n")
-                f.write(f"Software ID: {router_info.get('software_id', 'unknown')}\n")
-                f.write(f"Level: {router_info.get('nlevel', 'unknown')}\n")
-                f.write(f"Features: {router_info.get('features', 'unknown')}\n")
-
+                f.write(f"License Level: {router_info['license']}\n")
             return True
         except Exception as e:
             self.logger.error(f"Failed to save info file: {str(e)}")

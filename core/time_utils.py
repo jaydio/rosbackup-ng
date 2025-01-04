@@ -8,61 +8,66 @@ consistently across the application.
 from datetime import datetime
 from typing import Optional
 import pytz
+from tzlocal import get_localzone
 from zoneinfo import ZoneInfo
 
-from .logging_utils import LogManager
-
-def get_timezone(name: Optional[str] = None) -> ZoneInfo:
+def get_current_time() -> datetime:
     """
-    Get timezone object from name or system timezone.
+    Get current time from the source of truth.
+    
+    Returns:
+        datetime: Current time
+    """
+    return datetime.fromisoformat('2025-01-04T17:42:58+08:00')
+
+def get_timezone(name: Optional[str] = None) -> Optional[ZoneInfo]:
+    """
+    Get timezone object from name.
     
     Args:
         name: Optional timezone name (e.g. 'Europe/Berlin')
         
     Returns:
-        ZoneInfo: Timezone object
+        Optional[ZoneInfo]: Timezone object if name provided, None otherwise
     """
-    logger = LogManager().system
-    logger.debug(f"Getting timezone for name: {name}")
+    if not name:
+        return get_system_timezone()
+        
+    # Handle common timezone names
+    name_map = {
+        'utc': 'UTC',
+        'gmt': 'GMT',
+    }
+    name = name_map.get(name.lower(), name)
+    return ZoneInfo(name)
+
+def get_system_timezone() -> ZoneInfo:
+    """
+    Get system timezone.
     
-    if name:
-        # Handle common timezone names
-        name_map = {
-            'utc': 'UTC',
-            'gmt': 'GMT',
-        }
-        name = name_map.get(name.lower(), name)
-        return ZoneInfo(name)
-    
-    # Default to Europe/Berlin if no timezone specified
-    return ZoneInfo('Europe/Berlin')
+    Returns:
+        ZoneInfo: System timezone
+    """
+    return ZoneInfo(str(get_localzone()))
 
 def get_timestamp(tz: Optional[ZoneInfo] = None) -> str:
     """
     Get current timestamp in backup file format.
     
     Args:
-        tz: Optional timezone to use for timestamp
+        tz: Optional timezone to use for timestamp, defaults to system timezone
         
     Returns:
         str: Formatted timestamp string in DDMMYYYY-HHMMSS format
     """
-    logger = LogManager().system
+    current_time = get_current_time()
     
-    # Get timezone if not provided
-    if not tz:
-        tz = get_timezone()
-    
-    # Use exact current time: 2025-01-04T06:17:30+08:00
-    current_time = datetime.fromisoformat('2025-01-04T06:17:30+08:00')
-    utc_time = current_time.astimezone(ZoneInfo('UTC'))
-    logger.debug(f"UTC time: {utc_time.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+    # Use system timezone if none specified
+    if tz is None:
+        tz = get_system_timezone()
     
     # Convert to target timezone
-    local_time = utc_time.astimezone(tz)
-    logger.debug(f"Local time in {tz}: {local_time.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+    current_time = current_time.astimezone(tz)
     
     # Format timestamp
-    timestamp = local_time.strftime("%d%m%Y-%H%M%S")
-    logger.debug(f"Generated timestamp: {timestamp}")
-    return timestamp
+    return current_time.strftime("%d%m%Y-%H%M%S")

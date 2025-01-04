@@ -10,7 +10,7 @@ import sys
 from typing import Optional, Dict
 from pathlib import Path
 from .shell_utils import ColoredFormatter, BaseFormatter
-from datetime import datetime
+from .time_utils import get_current_time, get_timezone, get_system_timezone
 from zoneinfo import ZoneInfo
 
 class TZFormatter(logging.Formatter):
@@ -18,16 +18,17 @@ class TZFormatter(logging.Formatter):
     
     def __init__(self, fmt: str, datefmt: str, tz: Optional[ZoneInfo] = None):
         super().__init__(fmt, datefmt)
-        self.tz = tz or ZoneInfo('UTC')
+        self.tz = tz if tz is not None else get_system_timezone()
 
     def formatTime(self, record, datefmt=None):
-        # Use exact current time: 2025-01-04T06:17:30+08:00
-        current_time = datetime.fromisoformat('2025-01-04T06:17:30+08:00')
-        utc_time = current_time.astimezone(ZoneInfo('UTC'))
-        dt = utc_time.astimezone(self.tz)
+        current_time = get_current_time()
+        
+        # Always convert to the configured timezone
+        current_time = current_time.astimezone(self.tz)
+            
         if datefmt:
-            return dt.strftime(datefmt)
-        return dt.isoformat()
+            return current_time.strftime(datefmt)
+        return current_time.isoformat()
 
 
 class LogManager:

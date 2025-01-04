@@ -78,6 +78,8 @@ The backup files follow a standardized naming format that includes essential inf
   - `ros_version`: Same as directory
   - `arch`: Same as directory
   - `timestamp`: Backup creation time (format: DDMMYYYY-HHMMSS)
+    - Uses system timezone by default
+    - Can be overridden with `timezone` setting in global config
   - `ext`: File extension indicating type:
     - `.backup`: Binary backup file
     - `.rsc`: Plaintext configuration export
@@ -201,7 +203,7 @@ The tool uses two YAML configuration files: `global.yaml` for general settings a
 backup_path_parent: backups
 backup_retention_days: 90
 backup_password: your-global-backup-password
-timezone: Asia/Manila
+timezone: Europe/Berlin  # Optional: Override system timezone for timestamps
 
 # SSH Settings
 ssh:
