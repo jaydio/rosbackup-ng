@@ -5,8 +5,16 @@ All notable changes to rosbackup-ng.
 ## [Unreleased]
 
 ### Added
+- Enhanced colored output with distinct colors for each router
+- Improved log readability with consistent color scheme
+- Added support for FORCE_COLOR and NO_COLOR environment variables
 - Improved logging format to include router name in log messages
 - Added RouterLoggerAdapter for router-specific logging context
+
+### Changed
+- Refactored color handling in shell_utils.py
+- Improved SSH configuration inheritance from global settings
+- Updated log formatting for better visibility during parallel execution
 
 ## [0.1.3] - 2025-01-05
 
@@ -24,17 +32,19 @@ All notable changes to rosbackup-ng.
 - Improved timezone handling across the application
 
 ### Fixed
-- Color output in rosbackup.py is currently non-functional
 - Improved architecture detection and handling
-- Better support for non-RouterBoard devices
 - Enhanced router info parsing with better error handling
 - Fixed duplicate logging messages
 - Added more debug logging for routerboard info parsing
+- Better support for CHR
 
 ### Documentation
 - Added references to Paramiko disabled_algorithms documentation
 - Improved SSH troubleshooting guide
 - Removed outdated demo GIF (to be replaced)
+
+### Not working
+- Color output in rosbackup.py is currently non-functional
 
 ## [0.1.2] - 2025-01-03
 

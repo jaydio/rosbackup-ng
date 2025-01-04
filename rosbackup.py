@@ -6,13 +6,6 @@ This script performs automated backups of RouterOS devices, supporting both
 binary and plaintext backups with encryption and parallel execution.
 """
 
-# Initialize colorama before any imports that might use colors
-import os
-os.environ['FORCE_COLOR'] = '1'
-os.environ['CLICOLOR_FORCE'] = '1'
-import colorama
-colorama.init(autoreset=False, strip=False, convert=True, wrap=True)
-
 import argparse
 import concurrent.futures
 import logging
@@ -178,7 +171,7 @@ def backup_target(
         ssh_client = ssh_manager.create_client(
             target['host'],
             target.get('port', 22),
-            target['ssh_user'],
+            target.get('ssh_user', config['ssh'].get('user', 'rosbackup')),
             str(Path(target['private_key']))
         )
 
@@ -414,7 +407,7 @@ def main() -> None:
         logger.error(f"Backup completed. Success: {successful_backups}, Failed: {failed_backups} [{minutes}m {seconds}s]")
         sys.exit(1)
 
-def setup_logging(log_file: Optional[str], log_level: str = 'INFO', use_colors: bool = True) -> None:
+def setup_logging(log_file: Optional[str], log_level: str = 'INFO', use_colors: bool = True):
     """
     Set up logging configuration.
 
@@ -423,19 +416,23 @@ def setup_logging(log_file: Optional[str], log_level: str = 'INFO', use_colors: 
         log_level: Logging level (DEBUG, INFO, WARNING, ERROR)
         use_colors: Whether to use colors in console output
     """
-    log_manager = LogManager()
-    level = getattr(logging, log_level.upper())
-    log_manager.set_log_level(level)
-    
-    if log_file:
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setLevel(level)
-        file_handler.setFormatter(TZFormatter(
-            '%(asctime)s [%(levelname)s] [%(target_name)s] %(message)s',
-            '%Y-%m-%d %H:%M:%S'
-        ))
-        log_manager.add_file_handler(file_handler)
+    # Set color environment variables before any color-related imports
+    if not use_colors:
+        os.environ['NO_COLOR'] = '1'
+        if 'FORCE_COLOR' in os.environ:
+            del os.environ['FORCE_COLOR']
+    else:
+        os.environ['FORCE_COLOR'] = '1'
+        if 'NO_COLOR' in os.environ:
+            del os.environ['NO_COLOR']
 
+    # Initialize log manager
+    log_manager = LogManager()
+    log_manager.setup(
+        log_level=log_level,
+        log_file=log_file,
+        use_colors=use_colors
+    )
 
 if __name__ == '__main__':
     main()
