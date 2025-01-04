@@ -18,7 +18,7 @@ def get_current_time() -> datetime:
     Returns:
         datetime: Current time
     """
-    return datetime.fromisoformat('2025-01-04T17:42:58+08:00')
+    return datetime.fromisoformat('2025-01-04T18:22:07+08:00')
 
 def get_timezone(name: Optional[str] = None) -> Optional[ZoneInfo]:
     """
@@ -58,7 +58,7 @@ def get_timestamp(tz: Optional[ZoneInfo] = None) -> str:
         tz: Optional timezone to use for timestamp, defaults to system timezone
         
     Returns:
-        str: Formatted timestamp string in DDMMYYYY-HHMMSS format
+        str: Formatted timestamp string in MMDDYYYY-HHMMSS format
     """
     current_time = get_current_time()
     
@@ -70,4 +70,4 @@ def get_timestamp(tz: Optional[ZoneInfo] = None) -> str:
     current_time = current_time.astimezone(tz)
     
     # Format timestamp
-    return current_time.strftime("%d%m%Y-%H%M%S")
+    return current_time.strftime("%m%d%Y-%H%M%S")

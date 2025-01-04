@@ -136,7 +136,7 @@ class BackupManager:
             backup_password: Password for backup encryption
             encrypted: Whether to encrypt the backup
             backup_dir: Directory to store the backup
-            timestamp: Timestamp string (format: DDMMYYYY-HHMMSS)
+            timestamp: Timestamp string (format: MMDDYYYY-HHMMSS)
             keep_binary_backup: Whether to keep backup file on router
             dry_run: If True, only simulate the backup
 
@@ -148,7 +148,7 @@ class BackupManager:
         File Naming:
             The binary backup file follows the format:
             {identity}-{version}-{arch}-{timestamp}.backup
-            Example: MYR1-7.16.2-x86_64-02012025-164736.backup
+            Example: MYR1-7.16.2-x86_64-01042025-164736.backup
 
         Error Handling:
             - Verifies backup file creation on router
@@ -248,7 +248,7 @@ class BackupManager:
             ssh_client: Connected SSH client to the router
             router_info: Dictionary containing router information
             backup_dir: Directory to store the backup
-            timestamp: Timestamp string (format: DDMMYYYY-HHMMSS)
+            timestamp: Timestamp string (format: MMDDYYYY-HHMMSS)
             keep_plaintext_backup: Whether to keep export on router
             dry_run: If True, only simulate the backup
 
@@ -260,7 +260,7 @@ class BackupManager:
         File Naming:
             The plaintext export file follows the format:
             {identity}_{version}_{arch}_{timestamp}.rsc
-            Example: MYR1_7.16.2_x86_64_02012025-164736.rsc
+            Example: MYR1_7.16.2_x86_64_01042025-164736.rsc
 
         Error Handling:
             - Verifies export command output

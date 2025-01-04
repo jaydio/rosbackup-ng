@@ -112,7 +112,7 @@ def get_timestamp(config: Optional[GlobalConfig] = None) -> str:
         config: Optional global config containing timezone setting
         
     Returns:
-        str: Formatted timestamp string
+        str: Formatted timestamp string in MMDDYYYY-HHMMSS format
     """
     logger = LogManager().system
     logger.debug(f"Getting timestamp with config: {config}")
@@ -127,7 +127,7 @@ def get_timestamp(config: Optional[GlobalConfig] = None) -> str:
         current_time = current_time.astimezone(tz)
     
     # Format timestamp
-    return current_time.strftime("%d%m%Y-%H%M%S")
+    return current_time.strftime("%m%d%Y-%H%M%S")
 
 
 def backup_target(
