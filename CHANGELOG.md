@@ -4,6 +4,8 @@ All notable changes to rosbackup-ng.
 
 ## [Unreleased]
 
+## [0.1.4] - 2025-01-05
+
 ### Added
 - Enhanced colored output with distinct colors for each router
 - Improved log readability with consistent color scheme
