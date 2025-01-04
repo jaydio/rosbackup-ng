@@ -316,7 +316,7 @@ def main() -> None:
     # Handle timezone
     if 'timezone' in global_config_data:
         system_tz = get_system_timezone()
-        logger.info(f"Using timezone: {global_config_data['timezone']} (System: {system_tz})")
+        logger.info(f"Using timezone: {global_config_data['timezone']}")
         global_config['timezone'] = global_config_data['timezone']
         # Set timezone for logging
         LogManager().set_timezone(get_timezone(global_config['timezone']))
