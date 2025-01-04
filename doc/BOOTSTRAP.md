@@ -10,50 +10,55 @@ A utility for automating the setup of backup users on RouterOS devices. This too
 - **Secure Password Handling**: Option to generate random passwords or use specified ones
 - **Interactive Mode**: Prompts for password if neither password nor key is provided
 - **Colored Logging**: Clear visual feedback with color-coded status messages
-- **Command Completion**: Bash completion support for all options and file paths
+- **Command Completion**: Bash/Zsh completion support for all options and file paths
 
 ## Prerequisites
 
-- Python 3.6 or higher
+- Python 3.13.1 or higher
 - RouterOS device with SSH access enabled
 - Administrative access to the RouterOS device
 - SSH public key for the backup user
 
 ## Configuration
 
-The bootstrap tool will use SSH settings from `config/global.yaml` if present. This includes:
+The bootstrap tool will use connection timeouts from `config/global.yaml` if present:
 - Connection timeouts (default: 30 seconds)
 - Authentication timeouts (default: 30 seconds)
 - Known hosts handling:
   - `known_hosts_file`: Path to SSH known_hosts file
   - `add_target_host_key`: Whether to automatically add target host keys
-- SSH arguments:
-  - `look_for_keys`: Search for discoverable private key files
-  - `allow_agent`: Allow connecting to ssh-agent
 
 If no global configuration is found, it will use default settings:
 ```yaml
-ssh:
+connection:
   timeout: 30
   auth_timeout: 30
   known_hosts_file: null
   add_target_host_key: true
-  args:
-    look_for_keys: false
-    allow_agent: false
 ```
 
-## Usage
+## Command Completion
 
-### Enable Command Completion
-
-For easier command-line usage, enable bash completion:
+For easier command-line usage, enable bash/zsh completion:
 
 ```bash
-source scripts/rosbackup-completion.bash
+# For current session
+source scripts/rosbackup-ng-completion.bash
+
+# For permanent setup (choose one based on your shell):
+# Bash
+echo "source $(pwd)/scripts/rosbackup-ng-completion.bash" >> ~/.bashrc
+
+# Zsh
+echo "source $(pwd)/scripts/rosbackup-ng-completion.bash" >> ~/.zshrc
 ```
 
-This provides tab completion for all options and relevant file paths.
+The completion script provides:
+- Auto-completion for all command-line options
+- File path completion for relevant options
+- Target name completion from targets.yaml
+
+## Usage
 
 ### Basic Usage
 

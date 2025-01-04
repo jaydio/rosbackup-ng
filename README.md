@@ -4,51 +4,103 @@ A robust Python-based utility for automating backups of multiple RouterOS device
 
 ## Overview
 
-- **Simplified setup**: Uses a Python virtual environment
-- **Production tested**: Fully documented and tested in production
-- **Enhanced insights**: Actionable error messages and color-coded standard output
-- **Comprehensive logging**: Extensive logging facilities with multiple log levels
-- **Effortless onboarding**: Comprehensive README, setup guide, and inline docstrings
-- **High-speed performance**: Supports parallel SSH connections (back up 500 devices in under 1 minute!)
-- **Flexible configuration**: Global YAML configuration with customizable per-target overrides
-- **Versatile backups**: Selectively creates binary and plaintext (RouterScript export) backups
-- **Built-in notifications**: Supports email (with Telegram, Slack/Mattermost, NTFY, and webhooks coming soon)
-- **Batteries included**: Bootstrap script to deploy backup user and SSH public keys on target devices
-- **Improved CLI**: Command-line auto-completion for Bash and ZSH
-- **Safe testing**: Includes a dry-run mode to test configurations before backup runs 
-- **…and much more!** 🚀
+### Core Features
+- **Parallel Execution**: Back up 500 devices in under 1 minute! (since v0.1.0)
+- **Flexible Backups**: Binary and plaintext (RouterScript) exports (since v0.1.0)
+- **Comprehensive Logging**: Extensive logging with multiple levels and file rotation (since v0.1.0)
+- **Email Notifications**: Built-in email notifications for backup status (since v0.1.0)
+- **Dry-Run Mode**: Test configurations without making changes (since v0.1.0)
+
+### Recent Enhancements
+- **Enhanced Colors**: Distinct colors per router in logs with FORCE_COLOR/NO_COLOR support (v0.1.4)
+- **Improved CLI**: Command-line auto-completion with target name support (v0.1.4)
+- **SSH Config**: Better SSH configuration inheritance and flexibility (v0.1.4)
+- **Target Control**: Run backups on specific targets with ```--target``` option (v0.1.4)
+- **Parallel Control**: Fine-grained control over parallel execution (v0.1.4)
+- **INFO Files**: Enhanced router information collection and formatting (v0.1.3)
+- **Timezone Support**: Configurable timezone handling for timestamps (v0.1.3)
+
+### Coming Soon
+- **Notification Channels**: Support for Telegram, Slack/Mattermost, NTFY, and webhooks
+- **Container Support**: Docker container and systemd timer support
+- **Advanced Features**: Certificate store export/restore, batch processing
+- **And more!** 🚀
+
+## Prerequisites
+
+- Python 3.13.1 or higher
+- RouterOS devices with SSH access enabled
+- SSH key pair for authentication
+
+## Command-Line Options
+
+| Short | Long | Default | Required | Description |
+|-------|------|---------|----------|-------------|
+| `-c` | `--config-dir` | "./config" | No | Directory containing configuration files |
+| `-l` | `--log-file` | None | No | Override log file path. Only used if `log_file_enabled` is true |
+| `-L` | `--log-level` | "INFO" | No | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
+| `-d` | `--dry-run` | false | No | Simulate operations without making changes |
+| `-n` | `--no-color` | false | No | Disable colored output |
+| `-p` | `--no-parallel` | false | No | Disable parallel execution |
+| `-m` | `--max-parallel` | None | No | Override maximum parallel backups (from global.yaml) |
+| `-t` | `--target` | None | No | Run backup on specific target only |
+
+## Examples
+
+### Basic Usage
+```bash
+# Regular backup
+./rosbackup.py
+
+# Dry run to simulate backup operations
+./rosbackup.py --dry-run
+
+# Custom config directory
+./rosbackup.py --config-dir /path/to/config
+
+# Debug logging to file
+./rosbackup.py --log-level DEBUG --log-file backup.log
+
+# Disable colored output
+./rosbackup.py --no-color
+
+# Parallel execution control
+./rosbackup.py --no-parallel              # Disable parallel execution
+./rosbackup.py --max-parallel 10          # Set maximum parallel backups to 10
+
+# Target selection
+./rosbackup.py --target MYR1              # Backup specific target only
+```
 
 ## Directory Structure
 
-The project follows a modular structure for better organization and maintainability:
-
 ```
 .
-├── backups/                        # Backup storage directory
-├── bootstrap_router.py             # Router setup utility
-├── config/                         # Configuration files
-│   ├── global.yaml                 # Global settings (user created)
-│   ├── global.yaml.sample          # Global settings
-│   ├── targets.yaml                # Router definitions (user created)
-│   ├── targets.yaml.sample         # Router definitions
-├── core/                           # Core functionality modules
-│   ├── __init__.py                 # Package initialization
-│   ├── backup_operations.py        # Backup operations management
-│   ├── notifications.py            # Notification system
-│   ├── router_info.py              # Router information gathering
-│   └── ssh_utils.py                # SSH connection management
-├── doc/                            # Documentation
-│   ├── BOOTSTRAP.md                # Setup instructions
-│   └── SETUP.md                    # Detailed configuration guide
-├── scripts/                        # Helper scripts
-│   └── rosbackup-completion.bash   # Command-line completion
-├── ssh-keys/                       # SSH key storage
-│   ├── private/                    # Private key directory
-│   └── public/                     # Public key directory
-├── LICENSE                         # MIT License
-├── README.md                       # This file
-├── requirements.txt                # Python dependencies
-└── rosbackup.py                    # Main script
+├── backups/                    # Backup storage directory
+├── config/                     # Configuration files
+│   ├── global.yaml            # Global settings (user created)
+│   ├── global.yaml.sample     # Global settings template
+│   ├── targets.yaml           # Router definitions (user created)
+│   └── targets.yaml.sample    # Router definitions template
+├── core/                      # Core functionality modules
+│   ├── backup_utils.py        # Backup operations and file handling
+│   ├── logging_utils.py       # Logging system and formatters
+│   ├── notification_utils.py  # Notification system (email, etc.)
+│   ├── router_utils.py        # Router information gathering
+│   ├── shell_utils.py         # Shell output formatting and colors
+│   ├── ssh_utils.py          # SSH connections and operations
+│   └── time_utils.py         # Timezone and timestamp operations
+├── doc/                       # Documentation
+│   ├── BOOTSTRAP.md          # Router setup guide
+│   └── SETUP.md              # Installation and configuration
+├── scripts/                   # Helper scripts
+│   └── rosbackup-ng-completion.bash  # Shell completion
+├── ssh-keys/                 # SSH key storage
+│   ├── private/             # Private keys (user created)
+│   └── public/              # Public keys (user created)
+├── bootstrap_router.py       # Router setup utility
+├── rosbackup.py             # Main backup script
+└── requirements.txt         # Python dependencies
 ```
 
 ## Backup File Organization
@@ -123,75 +175,6 @@ backups/
   - User database and user passwords (unsupported)
   - ZeroTier private key (unsupported)
 
-## Details setup instructions
-
-For detailed setup instructions and configuration guide, see:
-- [Setup Guide](doc/SETUP.md): Comprehensive configuration and usage documentation
-- [Bootstrap Tool](doc/BOOTSTRAP.md): Guide for initial router setup and configuration
-
-## Quick Start
-
-1. Ensure Python 3.6 or higher is installed
-
-2. Set up Python virtual environment
-   ```bash
-   # Create virtual environment (only needed once)
-   python3 -m venv venv
-
-   # Activate the virtual environment (needed each time you start a new shell)
-   source venv/bin/activate
-   ```
-
-3. Install dependencies
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Create configuration files from samples
-   ```bash
-   cp config/global.yaml.sample config/global.yaml
-   cp config/targets.yaml.sample config/targets.yaml
-   ```
-
-5. Set up SSH keys (choose one):
-   ```bash
-   # Option 1: Link existing keys
-   ln -s ~/.ssh/id_rsa ssh-keys/private/id_rosbackup
-   ln -s ~/.ssh/id_rsa.pub ssh-keys/public/id_rosbackup.pub
-   
-   # Option 2: Generate new keys
-   ssh-keygen -t rsa -b 4096 -f ssh-keys/private/id_rosbackup -C "rosbackup"
-   ```
-
-6. Enable command-line completion (optional):
-   ```bash
-   source scripts/rosbackup-completion.bash
-   ```
-
-7. Configure RouterOS devices (choose one):
-   ```bash
-   # Option 1: Use bootstrap tool (recommended)
-   python3 bootstrap_router.py --host <router_ip> --backup-user-public-key <path_to_public_key>
-   
-   # Option 2: Manually configure SSH keys and permissions
-   # See BOOTSTRAP.md for manual setup instructions
-   ```
-
-8. Run the backup script:
-   ```bash
-   ./rosbackup.py
-   ```
-
-## Command-Line Options
-
-| Short | Long | Default | Required | Description |
-|-------|------|---------|----------|-------------|
-| `-c` | `--config-dir` | "./config" | No | Directory containing configuration files |
-| `-l` | `--log-file` | None | No | Override log file path. Only used if `log_file_enabled` is true |
-| `-L` | `--log-level` | "INFO" | No | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
-| `-d` | `--dry-run` | false | No | Simulate operations without making changes |
-| `-n` | `--no-color` | false | No | Disable colored output |
-
 ## Configuration
 
 The tool uses two YAML configuration files: `global.yaml` for general settings and `targets.yaml` for router-specific configurations.
@@ -260,7 +243,7 @@ smtp:
 | `backup_path_parent` | string | "backups" | Yes | No | Parent directory for backups |
 | `backup_retention_days` | integer | 90 | No | No | Days to keep backups |
 | `backup_password` | string | null | No | Yes | Global backup password |
-| `timezone` | string | system | No | No | Timezone for timestamps (e.g. Asia/Manila) |
+| `timezone` | string | uses system time | No | No | Timezone for timestamps (e.g. Asia/Manila) |
 
 #### SSH Settings
 | Parameter | Type | Default | Required | Overridable | Description |
@@ -392,30 +375,13 @@ The following global parameters can be overridden on a per target basis:
 
 This script is organized into core modules for better maintainability:
 
-- **backup_operations.py**: Manages backup operations
-- **notifications.py**: Handles notification system
-- **router_info.py**: Handles gathering and formatting router information
+- **backup_utils.py**: Manages backup operations and file handling
+- **logging_utils.py**: Configures logging system and formatters
+- **notification_utils.py**: Handles notification system (email, etc.)
+- **router_utils.py**: Handles gathering and formatting router information
+- **shell_utils.py**: Manages shell output formatting and colors
 - **ssh_utils.py**: Manages SSH connections and operations
-
-## Examples
-
-### Basic Usage
-```bash
-# Regular backup
-python3 rosbackup.py
-
-# Dry run to simulate backup operations
-python3 rosbackup.py --dry-run
-
-# Custom config directory
-python3 rosbackup.py --config-dir /path/to/config
-
-# Debug logging to file
-python3 rosbackup.py --log-level DEBUG --log-file backup.log
-
-# Disable colored output
-python3 rosbackup.py --no-color
-```
+- **time_utils.py**: Handles timezone and timestamp operations
 
 ## ROADMAP
 
@@ -428,10 +394,10 @@ The following features are planned for future releases.
 - Generic webhook support for custom integrations
 - [...]
 
-### General
+### Upcoming Features
 - **Systemd**: Add support for systemd timers
+- **Cronjob**: Add examples for cronjob scheduling
 - **Docker**: Add Docker container support
-- **Exceptions**: Implement better exception handling for network timeouts
 - **Retries**: Add retry mechanism for failed operations (e.g. during parallel execution)
 - **Interruptions**: Add cleanup procedures for interrupted backups
 - **Progress bar**: Add progress bars for long operations (parallel execution)
@@ -440,7 +406,6 @@ The following features are planned for future releases.
 - **Certificate management**: Export functionality for certificate store
 - **Restore script**: Supports remote restore of certificate store
 - **Batch processing**: Streamlines `bootstrap_router.py` operations
-- **Command-line**: Further enhance visual output during parallel execution
 
 Missing a feature? Open an issue or send a PR :)
 

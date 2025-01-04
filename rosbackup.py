@@ -45,6 +45,12 @@ def parse_arguments() -> argparse.Namespace:
                        help='Disable colored output')
     parser.add_argument('-d', '--dry-run', action='store_true',
                        help='Simulate operations without making changes')
+    parser.add_argument('--no-parallel', action='store_true',
+                       help='Disable parallel execution')
+    parser.add_argument('--max-parallel', type=int,
+                       help='Override maximum parallel backups')
+    parser.add_argument('--target', type=str,
+                       help='Run backup on specific target only')
 
     return parser.parse_args()
 
@@ -305,6 +311,17 @@ def main() -> None:
         'notifications': global_config_data.get('notifications', {}),
         'ssh': global_config_data.get('ssh', {}),
     }
+
+    # Apply CLI overrides for parallel execution settings
+    if args.no_parallel:
+        global_config['parallel_backups'] = False
+        logger.info("Parallel execution disabled via CLI")
+    if args.max_parallel is not None:
+        if args.max_parallel < 1:
+            logger.error("max-parallel must be at least 1")
+            sys.exit(1)
+        global_config['max_parallel'] = args.max_parallel
+        logger.info(f"Maximum parallel backups set to {args.max_parallel} via CLI")
     
     # Handle timezone
     if 'timezone' in global_config_data:
@@ -350,16 +367,28 @@ def main() -> None:
     # Load target configurations
     targets_file = Path(args.config_dir) / 'targets.yaml'
     if not targets_file.exists():
-        logger.error(f"Targets configuration file not found: {targets_file}")
+        logger.error(f"Target configuration file not found: {targets_file}")
         sys.exit(1)
 
     with open(targets_file) as f:
-        targets_config = yaml.safe_load(f)
+        targets_data = yaml.safe_load(f)
 
-    targets = targets_config.get('targets', [])
-    if not targets:
-        logger.error("No targets found in targets file")
+    if not targets_data or 'targets' not in targets_data:
+        logger.error("No targets found in configuration")
         sys.exit(1)
+
+    # Filter targets if --target is specified
+    if args.target:
+        targets = [t for t in targets_data['targets'] if t.get('name') == args.target]
+        if not targets:
+            logger.error(f"Target '{args.target}' not found in configuration")
+            sys.exit(1)
+        logger.info(f"Running backup for target '{args.target}' only")
+    else:
+        targets = targets_data['targets']
+
+    # Filter enabled targets
+    targets = [t for t in targets if t.get('enabled', True)]
 
     # Get global backup password
     backup_password = global_config.get('backup_password', '')

@@ -4,6 +4,13 @@ All notable changes to rosbackup-ng.
 
 ## [Unreleased]
 
+### Added
+- New CLI options for controlling parallel execution (--no-parallel, --max-parallel)
+- Added --target option to run backup on specific target only
+
+### Changed
+- Enhanced target filtering and validation in CLI
+
 ## [0.1.4] - 2025-01-05
 
 ### Added
