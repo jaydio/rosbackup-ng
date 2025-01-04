@@ -8,6 +8,34 @@ All notable changes to rosbackup-ng.
 - Improved logging format to include router name in log messages
 - Added RouterLoggerAdapter for router-specific logging context
 
+## [0.1.3] - 2025-01-05
+
+### Added
+- Enhanced INFO file format with detailed sections:
+  - Overall Statistics (IP addressing, interfaces, firewall rules, DHCP services, QoS and ARP/ND)
+  - Time Settings (time, date, timezone, DST status)
+- Added terse parameter to export command for cleaner output
+- Improved logging with router/target names for better clarity
+
+### Changed
+- Changed timestamp format from DDMMYYYY to MMDDYYYY for consistency
+- Updated backup naming convention and INFO file format
+- Simplified timezone logging
+- Improved timezone handling across the application
+
+### Fixed
+- Color output in rosbackup.py is currently non-functional
+- Improved architecture detection and handling
+- Better support for non-RouterBoard devices
+- Enhanced router info parsing with better error handling
+- Fixed duplicate logging messages
+- Added more debug logging for routerboard info parsing
+
+### Documentation
+- Added references to Paramiko disabled_algorithms documentation
+- Improved SSH troubleshooting guide
+- Removed outdated demo GIF (to be replaced)
+
 ## [0.1.2] - 2025-01-03
 
 ### Added
