@@ -33,6 +33,51 @@ class RouterInfo(TypedDict):
         free_memory: Available RAM
         free_hdd_space: Available disk space
         license: License level
+        uptime: Uptime
+        factory_firmware: Factory firmware
+        total_hdd_space: Total HDD space
+        write_sect_since_reboot: Write sectors since reboot
+        write_sect_total: Write sectors total
+        board_name: Board name
+        system_id: System ID
+        time: Time
+        date: Date
+        time_zone_name: Time zone name
+        gmt_offset: GMT offset
+        dst_active: DST active
+        time_zone_autodetect: Time zone autodetect
+        ipv4_fw_filter: IPv4 firewall filter rules
+        ipv6_fw_filter: IPv6 firewall filter rules
+        ipv4_fw_raw: IPv4 firewall raw rules
+        ipv6_fw_raw: IPv6 firewall raw rules
+        ipv4_fw_nat: IPv4 firewall NAT rules
+        ipv6_fw_nat: IPv6 firewall NAT rules
+        ipv4_fw_mangle: IPv4 firewall mangle rules
+        ipv6_fw_mangle: IPv6 firewall mangle rules
+        ipv4_fw_address_list: IPv4 firewall address list entries
+        ipv6_fw_address_list: IPv6 firewall address list entries
+        ipv4_fw_connections: IPv4 firewall active connections
+        ipv6_fw_connections: IPv6 firewall active connections
+        ipv4_addresses: IPv4 addresses
+        ipv6_addresses: IPv6 addresses
+        ipv4_pools: IPv4 pools
+        ipv6_pools: IPv6 pools
+        ipv4_dhcp_servers: IPv4 DHCP servers
+        ipv6_dhcp_servers: IPv6 DHCP servers
+        ipv4_dhcp_clients: IPv4 DHCP clients
+        ipv6_dhcp_clients: IPv6 DHCP clients
+        ipv4_dhcp_relays: IPv4 DHCP relays
+        ipv6_dhcp_relays: IPv6 DHCP relays
+        bridge_interfaces: Bridge interfaces
+        bond_interfaces: Bond interfaces
+        vlan_interfaces: VLAN interfaces
+        ppp_active_sessions: Active PPP sessions
+        queue_tree_items: Queue tree items
+        ipv4_arp_failed: IPv4 ARP failed
+        ipv4_arp_permanent: IPv4 ARP permanent
+        ipv4_arp_reachable: IPv4 ARP reachable
+        ipv6_neighbors: IPv6 neighbors
+        ethernet_interfaces: Ethernet interfaces
     """
     identity: str
     model: str
@@ -45,6 +90,51 @@ class RouterInfo(TypedDict):
     free_memory: str
     free_hdd_space: str
     license: str
+    uptime: str
+    factory_firmware: str
+    total_hdd_space: str
+    write_sect_since_reboot: str
+    write_sect_total: str
+    board_name: Optional[str]
+    system_id: str
+    time: str
+    date: str
+    time_zone_name: str
+    gmt_offset: str
+    dst_active: str
+    time_zone_autodetect: str
+    ipv4_fw_filter: str
+    ipv6_fw_filter: str
+    ipv4_fw_raw: str
+    ipv6_fw_raw: str
+    ipv4_fw_nat: str
+    ipv6_fw_nat: str
+    ipv4_fw_mangle: str
+    ipv6_fw_mangle: str
+    ipv4_fw_address_list: str
+    ipv6_fw_address_list: str
+    ipv4_fw_connections: str
+    ipv6_fw_connections: str
+    ipv4_addresses: str
+    ipv6_addresses: str
+    ipv4_pools: str
+    ipv6_pools: str
+    ipv4_dhcp_servers: str
+    ipv6_dhcp_servers: str
+    ipv4_dhcp_clients: str
+    ipv6_dhcp_clients: str
+    ipv4_dhcp_relays: str
+    ipv6_dhcp_relays: str
+    bridge_interfaces: str
+    bond_interfaces: str
+    vlan_interfaces: str
+    ppp_active_sessions: str
+    queue_tree_items: str
+    ipv4_arp_failed: str
+    ipv4_arp_permanent: str
+    ipv4_arp_reachable: str
+    ipv6_neighbors: str
+    ethernet_interfaces: str
 
 
 class BackupResult(TypedDict):
@@ -338,7 +428,10 @@ class BackupManager:
             - System Information
             - Hardware Information
             - System Resources
+            - System Status
             - License Information
+            - Time Settings
+            - Overall Statistics
         """
         if dry_run:
             self.logger.info(f"[DRY RUN] Would save router info to {info_file_path}")
@@ -350,13 +443,16 @@ class BackupManager:
                 f.write("System Information\n")
                 f.write("=================\n")
                 f.write(f"Name: {router_info['identity']}\n")
-                f.write(f"RouterOS Version: {router_info['ros_version']}\n")
-                f.write(f"Model: {router_info['model']}\n")
-                f.write(f"Architecture: {router_info['architecture_name']}\n\n")
+                f.write(f"Version: {router_info['ros_version']}\n")
+                f.write(f"License: Level {router_info['license']}\n")
+                f.write(f"System ID: {router_info['system_id']}\n")
+                f.write(f"Uptime: {router_info['uptime']}\n\n")
 
                 # Hardware Information
                 f.write("Hardware Information\n")
                 f.write("===================\n")
+                f.write(f"Model: {router_info['model']}\n")
+                f.write(f"Arch: {router_info['architecture_name']}\n")
                 f.write(f"CPU: {router_info['cpu_name']}\n")
                 f.write(f"CPU Count: {router_info['cpu_count']}\n")
                 f.write(f"CPU Frequency: {router_info['cpu_frequency']}\n\n")
@@ -366,13 +462,73 @@ class BackupManager:
                 f.write("===============\n")
                 f.write(f"Total Memory: {router_info['total_memory']}\n")
                 f.write(f"Free Memory: {router_info['free_memory']}\n")
-                f.write(f"Free Storage: {router_info['free_hdd_space']}\n\n")
+                f.write(f"Total HDD Space: {router_info['total_hdd_space']}\n")
+                f.write(f"Free HDD Space: {router_info['free_hdd_space']}\n")
+                f.write(f"Write Sectors Since Reboot: {router_info['write_sect_since_reboot']}\n")
+                f.write(f"Write Sectors Total: {router_info['write_sect_total']}\n")
 
-                # License Information
-                f.write("License Information\n")
-                f.write("==================\n")
-                f.write(f"License Level: {router_info['license']}\n")
-            return True
+                # Time Settings
+                f.write("\nTime Settings\n")
+                f.write("=============\n")
+                f.write(f"Time: {router_info['time']}\n")
+                f.write(f"Date: {router_info['date']}\n")
+                f.write(f"Time Zone: {router_info['time_zone_name']}\n")
+                f.write(f"GMT Offset: {router_info['gmt_offset']}\n")
+                f.write(f"DST Active: {router_info['dst_active']}\n")
+                f.write(f"Auto-detect Time Zone: {router_info['time_zone_autodetect']}\n")
+
+                # Overall Statistics
+                f.write("\nOverall Statistics\n")
+                f.write("=================\n")
+
+                f.write("\nIP Addressing\n")
+                f.write("-------------\n")
+                f.write(f"IPv4 Addresses: {router_info['ipv4_addresses']}\n")
+                f.write(f"IPv6 Addresses: {router_info['ipv6_addresses']}\n")
+                f.write(f"IPv4 Pools: {router_info['ipv4_pools']}\n")
+                f.write(f"IPv6 Pools: {router_info['ipv6_pools']}\n")
+
+                f.write("\nInterfaces\n")
+                f.write("----------\n")
+                f.write(f"Ethernet Interfaces: {router_info['ethernet_interfaces']}\n")
+                f.write(f"VLAN Interfaces: {router_info['vlan_interfaces']}\n")
+                f.write(f"Bridge Interfaces: {router_info['bridge_interfaces']}\n")
+                f.write(f"Bond Interfaces: {router_info['bond_interfaces']}\n")
+                f.write(f"PPP Sessions: {router_info['ppp_active_sessions']}\n")
+
+                f.write("\nFirewall\n")
+                f.write("---------\n")
+                f.write(f"IPv4 Filter Rules: {router_info['ipv4_fw_filter']}\n")
+                f.write(f"IPv6 Filter Rules: {router_info['ipv6_fw_filter']}\n")
+                f.write(f"IPv4 Raw Rules: {router_info['ipv4_fw_raw']}\n")
+                f.write(f"IPv6 Raw Rules: {router_info['ipv6_fw_raw']}\n")
+                f.write(f"IPv4 NAT Rules: {router_info['ipv4_fw_nat']}\n")
+                f.write(f"IPv6 NAT Rules: {router_info['ipv6_fw_nat']}\n")
+                f.write(f"IPv4 Mangle Rules: {router_info['ipv4_fw_mangle']}\n")
+                f.write(f"IPv6 Mangle Rules: {router_info['ipv6_fw_mangle']}\n")
+                f.write(f"IPv4 Address List Entries: {router_info['ipv4_fw_address_list']}\n")
+                f.write(f"IPv6 Address List Entries: {router_info['ipv6_fw_address_list']}\n")
+                f.write(f"IPv4 Active Connections: {router_info['ipv4_fw_connections']}\n")
+                f.write(f"IPv6 Active Connections: {router_info['ipv6_fw_connections']}\n")
+
+                f.write("\nDHCP Services\n")
+                f.write("-------------\n")
+                f.write(f"IPv4 DHCP Servers: {router_info['ipv4_dhcp_servers']}\n")
+                f.write(f"IPv6 DHCP Servers: {router_info['ipv6_dhcp_servers']}\n")
+                f.write(f"IPv4 DHCP Clients: {router_info['ipv4_dhcp_clients']}\n")
+                f.write(f"IPv6 DHCP Clients: {router_info['ipv6_dhcp_clients']}\n")
+                f.write(f"IPv4 DHCP Relays: {router_info['ipv4_dhcp_relays']}\n")
+                f.write(f"IPv6 DHCP Relays: {router_info['ipv6_dhcp_relays']}\n")
+
+                f.write("\nQoS and ARP/ND\n")
+                f.write("-------------\n")
+                f.write(f"Queue Tree Items: {router_info['queue_tree_items']}\n")
+                f.write(f"IPv4 ARP Failed: {router_info['ipv4_arp_failed']}\n")
+                f.write(f"IPv4 ARP Permanent: {router_info['ipv4_arp_permanent']}\n")
+                f.write(f"IPv4 ARP Reachable: {router_info['ipv4_arp_reachable']}\n")
+                f.write(f"IPv6 Neighbors: {router_info['ipv6_neighbors']}\n")
+
+                return True
         except Exception as e:
             self.logger.error(f"Failed to save info file: {str(e)}")
             return False

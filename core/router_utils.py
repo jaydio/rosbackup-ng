@@ -47,11 +47,53 @@ class RouterInfo(TypedDict):
     platform: str
     
     # License
-    software_id: str
+    system_id: str
     upgradable_to: str
     license: str
     features: str
     ros_version: str
+    
+    # Clock Settings
+    time: str
+    date: str
+    time_zone_autodetect: str
+    time_zone_name: str
+    gmt_offset: str
+    dst_active: str
+    
+    # Overall Statistics
+    ipv4_fw_filter: str
+    ipv6_fw_filter: str
+    ipv4_fw_raw: str
+    ipv6_fw_raw: str
+    ipv4_fw_nat: str
+    ipv6_fw_nat: str
+    ipv4_fw_connections: str
+    ipv6_fw_connections: str
+    ipv4_fw_mangle: str
+    ipv6_fw_mangle: str
+    ipv4_fw_address_list: str
+    ipv6_fw_address_list: str
+    ipv4_addresses: str
+    ipv6_addresses: str
+    ipv4_dhcp_servers: str
+    ipv6_dhcp_servers: str
+    ipv4_dhcp_clients: str
+    ipv6_dhcp_clients: str
+    ipv4_dhcp_relays: str
+    ipv6_dhcp_relays: str
+    ipv4_pools: str
+    ipv6_pools: str
+    ppp_active_sessions: str
+    bridge_interfaces: str
+    bond_interfaces: str
+    vlan_interfaces: str
+    ethernet_interfaces: str
+    queue_tree_items: str
+    ipv4_arp_failed: str
+    ipv4_arp_permanent: str
+    ipv4_arp_reachable: str
+    ipv6_neighbors: str
 
 
 class RouterInfoManager:
@@ -116,6 +158,67 @@ class RouterInfoManager:
                 raise RuntimeError(f"Failed to get license info: {stderr}")
             license_info = self._parse_mikrotik_output(stdout)
 
+            # Get clock info
+            stdout, stderr = self.ssh_manager.execute_command(ssh_client, "/system clock print")
+            if stderr:
+                self.logger.error(f"Error getting clock info: {stderr}")
+                raise RuntimeError(f"Failed to get clock info: {stderr}")
+            clock_info = self._parse_mikrotik_output(stdout)
+
+            # Get statistics
+            stats_commands = [
+                ("/ip/firewall/filter/find", "ipv4_fw_filter"),
+                ("/ipv6/firewall/filter/find", "ipv6_fw_filter"),
+                ("/ip/firewall/raw/find", "ipv4_fw_raw"),
+                ("/ipv6/firewall/raw/find", "ipv6_fw_raw"),
+                ("/ip/firewall/nat/find", "ipv4_fw_nat"),
+                ("/ipv6/firewall/nat/find", "ipv6_fw_nat"),
+                ("/ip/firewall/connection/find", "ipv4_fw_connections"),
+                ("/ipv6/firewall/connection/find", "ipv6_fw_connections"),
+                ("/ip/firewall/mangle/find", "ipv4_fw_mangle"),
+                ("/ipv6/firewall/mangle/find", "ipv6_fw_mangle"),
+                ("/ip/firewall/address-list/find", "ipv4_fw_address_list"),
+                ("/ipv6/firewall/address-list/find", "ipv6_fw_address_list"),
+                ("/ip/address/find", "ipv4_addresses"),
+                ("/ipv6/address/find", "ipv6_addresses"),
+                ("/ip/dhcp-server/find", "ipv4_dhcp_servers"),
+                ("/ipv6/dhcp-server/find", "ipv6_dhcp_servers"),
+                ("/ip/dhcp-client/find", "ipv4_dhcp_clients"),
+                ("/ipv6/dhcp-client/find", "ipv6_dhcp_clients"),
+                ("/ip/dhcp-relay/find", "ipv4_dhcp_relays"),
+                ("/ipv6/dhcp-relay/find", "ipv6_dhcp_relays"),
+                ("/ip/pool/find", "ipv4_pools"),
+                ("/ipv6/pool/find", "ipv6_pools"),
+                ("/ppp/active/find", "ppp_active_sessions"),
+                ("/interface/bridge/find", "bridge_interfaces"),
+                ("/interface/bonding/find", "bond_interfaces"),
+                ("/interface/vlan/find", "vlan_interfaces"),
+                ("/interface/ethernet/find", "ethernet_interfaces"),
+                ("/queue/tree/find", "queue_tree_items"),
+                ("/ip/arp/find where status=failed", "ipv4_arp_failed"),
+                ("/ip/arp/find where status=permanent", "ipv4_arp_permanent"),
+                ("/ip/arp/find where status=reachable", "ipv4_arp_reachable"),
+                ("/ipv6/neighbor/find", "ipv6_neighbors")
+            ]
+
+            stats = {}
+            for cmd, key in stats_commands:
+                try:
+                    stdout, stderr = self.ssh_manager.execute_command(ssh_client, f":put [:len [{cmd}]]")
+                    if stderr:
+                        self.logger.warning(f"Error getting {key}: {stderr}")
+                        stats[key] = "0"
+                    else:
+                        stats[key] = stdout.strip() or "0"
+                except Exception as e:
+                    self.logger.warning(f"Failed to get {key}: {str(e)}")
+                    stats[key] = "0"
+
+            # Get model, default to CHR if undefined
+            model = board_info.get('model', 'unknown')
+            if model == 'unknown':
+                model = 'CHR'
+
             # Combine all information
             router_info = {
                 # System Identity
@@ -123,8 +226,8 @@ class RouterInfoManager:
                 'name': identity_info.get('name', 'unknown'),
                 
                 # System Resource
-                'model': board_info.get('model', 'unknown'),
-                'board_name': board_info.get('board-name', 'unknown'),
+                'model': model,
+                'board_name': board_info.get('board-name', 'unknown') if model != 'CHR' else None,
                 'serial_number': board_info.get('serial-number', 'unknown'),
                 'firmware_type': board_info.get('firmware-type', 'unknown'),
                 'factory_firmware': board_info.get('factory-firmware', 'unknown'),
@@ -150,10 +253,21 @@ class RouterInfoManager:
                 'platform': resource_info.get('platform', 'unknown'),
                 
                 # License
-                'software_id': license_info.get('software-id', 'unknown'),
+                'system_id': license_info.get('system-id') or license_info.get('software-id', 'unknown'),
                 'upgradable_to': license_info.get('upgradable-to', 'unknown'),
-                'license': license_info.get('nlevel', 'unknown'),
+                'license': license_info.get('level') or license_info.get('nlevel', 'unknown'),
                 'features': license_info.get('features', 'unknown'),
+                
+                # Clock Settings
+                'time': clock_info.get('time', 'unknown'),
+                'date': clock_info.get('date', 'unknown'),
+                'time_zone_autodetect': clock_info.get('time-zone-autodetect', 'unknown'),
+                'time_zone_name': clock_info.get('time-zone-name', 'unknown'),
+                'gmt_offset': clock_info.get('gmt-offset', 'unknown'),
+                'dst_active': clock_info.get('dst-active', 'unknown'),
+                
+                # Overall Statistics
+                **stats,
                 
                 # For compatibility
                 'ros_version': resource_info.get('version', 'unknown'),

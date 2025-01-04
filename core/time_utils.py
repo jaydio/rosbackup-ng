@@ -16,9 +16,9 @@ def get_current_time() -> datetime:
     Get current time from the source of truth.
     
     Returns:
-        datetime: Current time
+        datetime: Current time with timezone info
     """
-    return datetime.fromisoformat('2025-01-04T18:26:37+08:00')
+    return datetime.now(tz=get_localzone())
 
 def get_timezone(name: Optional[str] = None) -> Optional[ZoneInfo]:
     """
