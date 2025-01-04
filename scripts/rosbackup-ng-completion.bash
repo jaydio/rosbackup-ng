@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
-_rosbackup_completions()
+_rosbackup_ng_completions()
 {
     local cur prev opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="--help --dry-run --config-dir --log-file --log-level"
+    opts="--help --dry-run --config-dir --log-file --log-level --no-color --no-parallel --max-parallel --target"
 
     case "${prev}" in
         --config-dir)
@@ -24,6 +24,19 @@ _rosbackup_completions()
             COMPREPLY=( $(compgen -W "DEBUG INFO WARNING ERROR CRITICAL" -- ${cur}) )
             return 0
             ;;
+        --max-parallel)
+            # No completion for numbers
+            return 0
+            ;;
+        --target)
+            # Complete target names from targets.yaml
+            if [ -f "./config/targets.yaml" ]; then
+                # Use awk to extract target names from targets.yaml
+                local targets=$(awk '/name:/ {print $3}' ./config/targets.yaml)
+                COMPREPLY=( $(compgen -W "${targets}" -- ${cur}) )
+            fi
+            return 0
+            ;;
         *)
             # Complete option names
             COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
@@ -32,7 +45,7 @@ _rosbackup_completions()
     esac
 }
 
-complete -F _rosbackup_completions rosbackup.py
+complete -F _rosbackup_ng_completions rosbackup.py
 
 _bootstrap_router_completions()
 {
@@ -51,18 +64,26 @@ _bootstrap_router_completions()
             # No completion for usernames
             return 0
             ;;
-        --ssh-user-private-key|--backup-user-public-key|--log-file)
+        --ssh-user-password|--backup-user-password)
+            # No completion for passwords
+            return 0
+            ;;
+        --ssh-user-private-key|--backup-user-public-key)
             # Complete file paths
             COMPREPLY=( $(compgen -f -- ${cur}) )
             return 0
             ;;
-        --backup-user-group)
-            # Complete common RouterOS groups
-            COMPREPLY=( $(compgen -W "full read write" -- ${cur}) )
-            return 0
-            ;;
         --ssh-port)
             # No completion for port numbers
+            return 0
+            ;;
+        --backup-user-group)
+            # No completion for group names
+            return 0
+            ;;
+        --log-file)
+            # Complete file paths
+            COMPREPLY=( $(compgen -f -- ${cur}) )
             return 0
             ;;
         *)
