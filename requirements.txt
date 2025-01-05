@@ -1,6 +1,9 @@
-paramiko>=3.5.0
-scp>=0.15.0
-PyYAML>=6.0.1
-colorama>=0.4.6
-pytz
-tzdata
+bcrypt==4.2.1
+colorama==0.4.6
+paramiko==3.5.0
+pytz==2024.2
+PyYAML==6.0.2
+scp==0.15.0
+tqdm==4.66.2
+tzdata==2024.2
+tzlocal==5.2

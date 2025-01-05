@@ -11,6 +11,7 @@ A robust Python-based utility for automating backups of multiple RouterOS device
 - **Email Notifications**: Built-in email notifications for backup status (since v0.1.0)
 - **Dry-Run Mode**: Test configurations without making changes (since v0.1.0)
 - **Progress Bar**: Visual progress tracking for parallel backups (since v0.1.5)
+- **Automatic Router Setup**: Script for bootstrapping RouterOS devices with SSH keys and user permissions (since v0.1.4)
 
 ### Recent Enhancements
 - **Enhanced Colors**: Distinct colors per router in logs with FORCE_COLOR/NO_COLOR support (v0.1.4)

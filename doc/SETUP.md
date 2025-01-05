@@ -2,28 +2,41 @@
 
 ## Prerequisites
 
-- Python 3.6 or higher
+- Python 3.13.1 or higher
 - RouterOS devices with SSH access enabled
 - SSH key pair for authentication
 
 ## Installation
 
 1. Clone the repository and enter directory
-```bash
-git clone https://git.pnty.app/jd/rosbackup-ng.git
-cd rosbackup-ng
-```
+    ```bash
+   git clone https://git.pnty.app/jd/rosbackup-ng.git
+   cd rosbackup-ng
+   ```
 
 2. Set up Python virtual environment (recommended)
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    ```
 
 3. Install dependencies
-```bash
-pip install -r requirements.txt
-```
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+4. Enable command completion (optional but recommended)
+    ```bash
+    # For current session
+    source scripts/rosbackup-ng-completion.bash
+
+    # For permanent setup (choose one based on your shell):
+    # Bash
+    echo "source $(pwd)/scripts/rosbackup-ng-completion.bash" >> ~/.bashrc
+
+    # Zsh
+    echo "source $(pwd)/scripts/rosbackup-ng-completion.bash" >> ~/.zshrc
+    ```
 
 ## Initial Configuration
 
@@ -32,6 +45,7 @@ pip install -r requirements.txt
    cp config/global.yaml.sample config/global.yaml
    cp config/targets.yaml.sample config/targets.yaml
    ```
+
 2. Set up SSH keys (choose one option):
    
    a. Create symbolic links to existing keys:
