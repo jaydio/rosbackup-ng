@@ -20,45 +20,6 @@ A utility for automating the setup of backup users on RouterOS devices. This too
 - Administrative access to the RouterOS device
 - SSH public key for the backup user
 
-## Configuration
-
-The bootstrap tool will use connection timeouts from `config/global.yaml` if present:
-- Connection timeouts (default: 30 seconds)
-- Authentication timeouts (default: 30 seconds)
-- Known hosts handling:
-  - `known_hosts_file`: Path to SSH known_hosts file
-  - `add_target_host_key`: Whether to automatically add target host keys
-
-If no global configuration is found, it will use default settings:
-```yaml
-connection:
-  timeout: 30
-  auth_timeout: 30
-  known_hosts_file: null
-  add_target_host_key: true
-```
-
-## Command Completion
-
-For easier command-line usage, enable bash/zsh completion:
-
-```bash
-# For current session
-source scripts/rosbackup-ng-completion.bash
-
-# For permanent setup (choose one based on your shell):
-# Bash
-echo "source $(pwd)/scripts/rosbackup-ng-completion.bash" >> ~/.bashrc
-
-# Zsh
-echo "source $(pwd)/scripts/rosbackup-ng-completion.bash" >> ~/.zshrc
-```
-
-The completion script provides:
-- Auto-completion for all command-line options
-- File path completion for relevant options
-- Target name completion from targets.yaml
-
 ## Usage
 
 ### Basic Usage
@@ -156,27 +117,6 @@ python3 bootstrap_router.py \
     --backup-user-public-key ssh-keys/public/id_rosbackup.pub \
     --force
 ```
-
-## Command-Line Options
-
-| Short | Long | Default | Required | Description |
-|-------|------|---------|----------|-------------|
-| `-H` | `--host` | - | Yes | RouterOS device IP address or hostname |
-| `-k` | `--backup-user-public-key` | - | Yes | Public key file for backup user authentication |
-| `-u` | `--ssh-user` | admin | No* | SSH username for initial connection |
-| `-P` | `--ssh-user-password` | - | No* | SSH password for initial connection |
-| `-i` | `--ssh-user-private-key` | - | No* | SSH private key for initial connection |
-| `-p` | `--ssh-port` | 22 | No | SSH port number |
-| `-b` | `--backup-user` | backup | No | Username for backup account |
-| `-B` | `--backup-user-password` | - | No | Password for backup user (auto-generated if not set) |
-| `-g` | `--backup-user-group` | full | No | User group for backup user |
-| `-s` | `--show-backup-credentials` | false | No | Display generated backup user credentials |
-| `-l` | `--log-file` | - | No | Path to log file (no file logging if not set) |
-| `-n` | `--no-color` | false | No | Disable colored output |
-| `-d` | `--dry-run` | false | No | Show what would be done without making changes |
-| `-f` | `--force` | false | No | Overwrite existing backup user if it exists |
-
-\* Either `-P`/`--ssh-user-password` or `-i`/`--ssh-user-private-key` must be provided, or the script will prompt for password.
 
 ## Important Notes
 

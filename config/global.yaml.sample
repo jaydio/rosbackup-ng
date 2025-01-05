@@ -49,14 +49,14 @@ ssh:
 #notify_on_successful_backups: false  # Notify on success (optional, default: false)
 
 # SMTP Settings
-smtp:
-  enabled: false                        # Enable SMTP (required if notifications enabled)
-  host: smtp.example.com                # SMTP server hostname (required if smtp enabled)
-  port: 587                             # SMTP server port (required if smtp enabled)
-  username: notifications@example.com   # SMTP username (required if smtp enabled)
-  password: your-smtp-password          # SMTP password (required if smtp enabled)
-  from_email: notifications@example.com # Sender email (required if smtp enabled)
-  to_emails:                            # List of recipients (required if smtp enabled)
-    - admin@example.com
-  use_tls: true                         # Use STARTTLS (optional, default: true)
-  use_ssl: false                        # Use SSL/TLS (optional, default: false)
+#smtp:
+#  enabled: false                        # Enable SMTP (required if notifications enabled)
+#  host: smtp.example.com                # SMTP server hostname (required if smtp enabled)
+#  port: 587                             # SMTP server port (required if smtp enabled)
+#  username: notifications@example.com   # SMTP username (required if smtp enabled)
+#  password: your-smtp-password          # SMTP password (required if smtp enabled)
+#  from_email: notifications@example.com # Sender email (required if smtp enabled)
+#  to_emails:                            # List of recipients (required if smtp enabled)
+#    - admin@example.com
+#  use_tls: true                         # Use STARTTLS (optional, default: true)
+#  use_ssl: false                        # Use SSL/TLS (optional, default: false)

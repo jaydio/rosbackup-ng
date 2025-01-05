@@ -4,6 +4,52 @@ All notable changes to rosbackup-ng.
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-01-06
+
+### Added
+- Progress bar support with `--progress-bar` flag showing overall backup progress
+- Parallel backup execution with configurable worker count
+- Target-specific backup support with `--target` option
+- Better type definitions in backup_utils.py:
+  * Added `BackupConfig` TypedDict for global configuration
+  * Added `TargetConfig` TypedDict with detailed field documentation
+- Shell completion for both scripts:
+  * Command-line option completion
+  * File path completion
+  * Target name completion from targets.yaml
+- Comprehensive documentation:
+  * Design reference with architecture and component flows
+  * Command reference with detailed CLI options
+  * Configuration reference with parameter details
+  * Backup structure documentation
+  * Filesystem structure documentation
+  * Feature roadmap
+  * Version information and format
+- Demo GIF in README showing backup process with progress bar
+- Added .gitkeep to img directory for better repository structure
+
+### Changed
+- Improved error handling in backup operations:
+  * Added exit status checks for RouterOS commands
+  * Better error messages for failed operations
+- Shell completion improvements:
+  * Removed short-form parameters in favor of long-form only
+  * Added progress bar option completion
+- Documentation updates:
+  * Expanded notification channels in roadmap
+  * Added ramdisk backup feature to roadmap
+  * Updated sample config with clearer comments
+  * Updated README with cleaner output examples
+  * Added visual demo section to README
+  * Fixed typos in README
+- Code cleanup:
+  * Improved logging output format
+  * Reduced duplicate log messages
+  * Better error handling in SSH operations
+- Improved documentation organization
+- Updated README with visual demo section
+- Fixed typos in README
+
 ## [0.1.6] - 2025-01-06
 
 ### Added

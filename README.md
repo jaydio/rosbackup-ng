@@ -2,6 +2,10 @@
 
 A powerful and flexible backup solution for MikroTik RouterOS devices. This tool automates the process of creating, managing, and storing both binary and plaintext backups of RouterOS configurations with support for parallel execution, encryption, and comprehensive system information collection.
 
+## Demo
+
+![demo](img/rosbackup-ng-demo-0.2.0.gif)
+
 ## Features
 
 - **Multiple Backup Types**
@@ -26,6 +30,7 @@ A powerful and flexible backup solution for MikroTik RouterOS devices. This tool
   - Email notifications for backup status
   - Detailed logging with multiple levels
   - Progress tracking with visual feedback
+
 
 ## Documentation
 
