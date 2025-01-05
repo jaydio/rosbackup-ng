@@ -7,7 +7,7 @@ It supports encrypted backups, parallel execution, and various backup retention 
 
 import paramiko
 from pathlib import Path
-from typing import Dict, Optional, Tuple, TypedDict, Any
+from typing import Dict, Optional, Tuple, TypedDict, Any, Callable
 import logging
 import os
 import re
@@ -16,6 +16,7 @@ import time
 from .ssh_utils import SSHManager
 from .router_utils import RouterInfoManager
 from .logging_utils import LogManager
+import concurrent.futures
 
 class RouterInfo(TypedDict):
     """
@@ -247,8 +248,8 @@ class BackupManager:
             - Cleans up remote file if needed
         """
         if dry_run:
-            self.logger.info("[DRY RUN] Would perform binary backup")
-            return True, Path(backup_dir) / f"dry_run_{timestamp}.backup"
+            self.logger.debug("[DRY RUN] Would perform binary backup")
+            return True, None
 
         # Generate backup file name
         backup_name = self._generate_backup_name(router_info, timestamp, 'backup')
@@ -360,8 +361,8 @@ class BackupManager:
         """
 
         if dry_run:
-            self.logger.info("[DRY RUN] Would perform plaintext backup")
-            return True, Path(backup_dir) / f"dry_run_{timestamp}.rsc"
+            self.logger.debug("[DRY RUN] Would perform plaintext backup")
+            return True, None
 
         # Export configuration to file
         try:
@@ -434,7 +435,7 @@ class BackupManager:
             - Overall Statistics
         """
         if dry_run:
-            self.logger.info(f"[DRY RUN] Would save router info to {info_file_path}")
+            self.logger.debug(f"[DRY RUN] Would save router info to {info_file_path}")
             return True
 
         try:
@@ -532,3 +533,129 @@ class BackupManager:
         except Exception as e:
             self.logger.error(f"Failed to save info file: {str(e)}")
             return False
+
+def backup_parallel(targets: Dict[str, Any], config: Dict[str, Any],
+                   backup_password: str, backup_path: str,
+                   max_workers: int = 5, dry_run: bool = False,
+                   progress_callback: Optional[Callable] = None) -> int:
+    """
+    Perform parallel backup of multiple routers.
+
+    Args:
+        targets: List of target configurations
+        config: Global configuration
+        backup_password: Password for encrypted backups
+        backup_path: Path to store backups
+        max_workers: Maximum number of parallel workers
+        dry_run: If True, only simulate backup
+        progress_callback: Optional callback for progress updates
+
+    Returns:
+        Number of successful backups
+    """
+    success_count = 0
+    futures = []
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        for i, target in enumerate(targets):
+            future = executor.submit(
+                backup_router,
+                target=target,
+                config=config,
+                backup_password=backup_password,
+                backup_path=backup_path,
+                dry_run=dry_run,
+                progress_callback=progress_callback
+            )
+            futures.append(future)
+
+        # Wait for all futures to complete
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                if future.result():
+                    success_count += 1
+            except Exception as e:
+                logger.error(f"Backup failed: {str(e)}")
+
+    return success_count
+
+def backup_router(target: Dict[str, Any], config: Dict[str, Any],
+                 backup_password: str, backup_path: str,
+                 dry_run: bool = False,
+                 progress_callback: Optional[Callable] = None) -> bool:
+    """
+    Perform backup of a single router.
+
+    Args:
+        target: Target configuration
+        config: Global configuration
+        backup_password: Password for encrypted backups
+        backup_path: Path to store backups
+        dry_run: If True, only simulate backup
+        progress_callback: Optional callback for progress updates
+
+    Returns:
+        True if backup was successful
+    """
+    target_name = target['name']
+    logger = LogManager().get_logger('BACKUP', target_name)
+
+    try:
+        # Initialize managers
+        ssh_manager = SSHManager(config['ssh'], target_name)
+        router_info_manager = RouterInfoManager(ssh_manager, logger)
+        backup_manager = BackupManager(ssh_manager, router_info_manager, logger)
+
+        # Update progress: Connecting
+        if progress_callback:
+            progress_callback(desc=f"{target_name} (Connecting)")
+
+        # Connect to router
+        ssh_client = ssh_manager.connect(target)
+        if not ssh_client:
+            logger.error("Failed to connect to router")
+            return False
+
+        # Update progress: Getting Info
+        if progress_callback:
+            progress_callback(1, desc=f"{target_name} (Getting Info)")
+
+        # Get router info
+        router_info = router_info_manager.get_router_info(ssh_client)
+        if not router_info:
+            logger.error("Failed to get router info")
+            return False
+
+        # Update progress: Creating Backup
+        if progress_callback:
+            progress_callback(2, desc=f"{target_name} (Creating Backup)")
+
+        # Create backup directory
+        backup_dir = Path(backup_path)
+        if not dry_run:
+            backup_dir.mkdir(parents=True, exist_ok=True)
+
+        # Get timestamp
+        timestamp = get_timestamp()
+
+        # Perform backup
+        success = backup_manager.perform_backup(
+            ssh_client=ssh_client,
+            router_info=router_info,
+            backup_password=backup_password,
+            backup_dir=backup_dir,
+            timestamp=timestamp,
+            dry_run=dry_run
+        )
+
+        # Update progress: Success/Failed
+        if progress_callback:
+            progress_callback(2, desc=f"{target_name} (Success)" if success else f"{target_name} (Failed)")
+
+        return success
+
+    except Exception as e:
+        logger.error(f"Backup failed: {str(e)}")
+        if progress_callback:
+            progress_callback(0, desc=f"{target_name} (Failed)")
+        return False

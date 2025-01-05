@@ -104,64 +104,61 @@ class SSHManager:
             - Reports network connectivity issues
         """
         try:
+            # Log connection attempt
+            self.logger.debug(f"Connecting to {host}:{port} as {username}")
+
+            # Create SSH client
             client = paramiko.SSHClient()
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+            # Configure paramiko logging
+            paramiko_logger = logging.getLogger('paramiko')
+            paramiko_logger.setLevel(logging.WARNING)  # Only show warnings and errors
+            paramiko_logger.addFilter(ParamikoFilter(self.target_name))
+            for handler in paramiko_logger.handlers:
+                handler.setFormatter(ParamikoFormatter(self.target_name))
 
             # Load private key
             try:
                 key = paramiko.RSAKey.from_private_key_file(key_path)
             except Exception as e:
-                self.logger.error(f"Failed to load private key {key_path}: {str(e)}")
+                self.logger.error(f"Failed to load private key: {str(e)}")
                 return None
 
-            # Configure paramiko loggers
-            for logger_name in ['paramiko', 'paramiko.transport', 'paramiko.client', 'paramiko.sftp', 'paramiko.channel']:
-                logger = logging.getLogger(logger_name)
-                logger.handlers = []  # Remove existing handlers
-                logger.propagate = False  # Don't propagate to root logger
-                logger.setLevel(logging.INFO)
-                
-                # Add console handler with our formatter and filter
-                console_handler = logging.StreamHandler()
-                console_handler.setFormatter(ParamikoFormatter(self.target_name))
-                console_handler.addFilter(ParamikoFilter(self.target_name))
-                logger.addHandler(console_handler)
-
-            # Connect with key-based auth
+            # Connect to host
             client.connect(
                 hostname=host,
                 port=port,
                 username=username,
                 pkey=key,
                 timeout=timeout,
-                banner_timeout=self.ssh_args.get('banner_timeout', 60),
-                auth_timeout=self.ssh_args.get('auth_timeout', 30)
+                allow_agent=False,
+                look_for_keys=False
             )
 
-            # Log successful connection and cipher details
-            transport = client.get_transport()
-            if transport:
-                cipher = transport.local_cipher
-                mac = transport.local_mac
-                self.logger.info(f"SSH connection established with {host}:{port} using key-based authentication")
-                self.logger.info(f"Connection secured with cipher {cipher} and MAC {mac}")
-            else:
-                self.logger.warning("Could not get transport details")
+            # Log success
+            cipher = client.get_transport().local_cipher
+            mac = client.get_transport().local_mac
+            self.logger.debug(f"SSH connection established with {host}:{port} using key-based authentication")
+            self.logger.debug(f"Connection secured with cipher {cipher} and MAC {mac}")
 
             return client
 
         except paramiko.AuthenticationException:
             self.logger.error(f"Authentication failed for {username}@{host}")
-        except paramiko.SSHException as e:
-            self.logger.error(f"SSH error connecting to {host}: {str(e)}")
-        except socket.timeout:
-            self.logger.error(f"Connection timed out to {host}")
-        except socket.error as e:
-            self.logger.error(f"Socket error connecting to {host}: {str(e)}")
-        except Exception as e:
-            self.logger.error(f"Unexpected error connecting to {host}: {str(e)}")
+            return None
 
-        return None
+        except paramiko.SSHException as e:
+            self.logger.error(f"SSH error: {str(e)}")
+            return None
+
+        except socket.error as e:
+            self.logger.error(f"Socket error: {str(e)}")
+            return None
+
+        except Exception as e:
+            self.logger.error(f"Connection failed: {str(e)}")
+            return None
 
     def execute_command(
         self,

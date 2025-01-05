@@ -46,6 +46,7 @@ class LogManager:
     _file_handler: Optional[logging.FileHandler] = None
     _tz: Optional[ZoneInfo] = None
     _system_logger: Optional[logging.Logger] = None
+    _console_handler: Optional[logging.StreamHandler] = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -66,16 +67,16 @@ class LogManager:
         root_logger.handlers.clear()
 
         # Add console handler
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(self._log_level)
+        self._console_handler = logging.StreamHandler()
+        self._console_handler.setLevel(self._log_level)
 
         # Use ColoredTZFormatter for console output
         console_formatter = ColoredTZFormatter(
             tz=self._tz,
             use_colors=self._use_colors
         )
-        console_handler.setFormatter(console_formatter)
-        root_logger.addHandler(console_handler)
+        self._console_handler.setFormatter(console_formatter)
+        root_logger.addHandler(self._console_handler)
 
         # Add file handler if specified
         if log_file:
@@ -191,6 +192,19 @@ class LogManager:
             for handler in logger.handlers:
                 if isinstance(handler.formatter, ColoredTZFormatter):
                     handler.formatter.tz = tz
+
+    def disable_console(self) -> None:
+        """Disable console output."""
+        if self._console_handler:
+            root_logger = logging.getLogger()
+            root_logger.removeHandler(self._console_handler)
+
+    def enable_console(self) -> None:
+        """Re-enable console output."""
+        if self._console_handler:
+            root_logger = logging.getLogger()
+            if self._console_handler not in root_logger.handlers:
+                root_logger.addHandler(self._console_handler)
 
     @property
     def system(self) -> logging.LoggerAdapter:
