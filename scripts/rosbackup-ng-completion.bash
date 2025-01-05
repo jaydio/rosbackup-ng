@@ -6,7 +6,7 @@ _rosbackup_ng_completions()
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="--help --dry-run --config-dir --log-file --log-level --no-color --no-parallel --max-parallel --target"
+    opts="--help --dry-run --config-dir --log-file --log-level --no-color --no-parallel --max-parallel --target --progress-bar"
 
     case "${prev}" in
         --config-dir)
@@ -53,39 +53,39 @@ _bootstrap_router_completions()
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="-h --help -H --host -u --ssh-user -P --ssh-user-password -i --ssh-user-private-key \
-          -p --ssh-port -b --backup-user -B --backup-user-password -g --backup-user-group \
-          -k --backup-user-public-key -s --show-backup-credentials -l --log-file -n --no-color \
-          -d --dry-run -f --force"
+    opts="--help --host --ssh-user --ssh-user-password --ssh-user-private-key \
+          --ssh-port --backup-user --backup-user-password --backup-user-group \
+          --backup-user-public-key --show-backup-credentials --log-file --no-color \
+          --dry-run --force"
 
     case "${prev}" in
-        -H|--host)
+        --host)
             # No completion for host addresses
             return 0
             ;;
-        -u|--ssh-user|-b|--backup-user)
+        --ssh-user|--backup-user)
             # No completion for usernames
             return 0
             ;;
-        -P|--ssh-user-password|-B|--backup-user-password)
+        --ssh-user-password|--backup-user-password)
             # No completion for passwords
             return 0
             ;;
-        -i|--ssh-user-private-key|-k|--backup-user-public-key)
+        --ssh-user-private-key|--backup-user-public-key)
             # Complete file paths
             COMPREPLY=( $(compgen -f -- ${cur}) )
             return 0
             ;;
-        -p|--ssh-port)
+        --ssh-port)
             # No completion for port numbers
             return 0
             ;;
-        -g|--backup-user-group)
+        --backup-user-group)
             # Complete common RouterOS groups
             COMPREPLY=( $(compgen -W "full read write" -- ${cur}) )
             return 0
             ;;
-        -l|--log-file)
+        --log-file)
             # Complete file paths
             COMPREPLY=( $(compgen -f -- ${cur}) )
             return 0

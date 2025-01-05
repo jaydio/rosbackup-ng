@@ -8,9 +8,12 @@ All notable changes to rosbackup-ng.
 
 ### Added
 - New CLI options for controlling parallel execution (`--no-parallel`, `--max-parallel`)
-- Added ```--target``` option to run backup on specific target only
-- Progress bar support with `-b` flag showing overall backup progress
+- Added `--target` option to run backup on specific target only
+- Progress bar support with `--progress-bar` flag showing overall backup progress
 - Improved logging with cleaner output and reduced duplication
+- Shell completion improvements:
+  * Added progress bar option completion
+  * Removed short-form parameters in favor of long-form only
 - Comprehensive documentation:
   * Design reference with architecture and component flows
   * Command reference with detailed CLI options
