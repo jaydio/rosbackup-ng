@@ -165,6 +165,8 @@ class ShellPbarHandler:
             position=position,
             leave=leave,
             ncols=ncols,
+            mininterval=0.1,  # Update every 0.1 seconds
+            maxinterval=0.5,  # Force update at least every 0.5 seconds
             bar_format=bar_format or '{desc:<30} {percentage:3.0f}%|{bar:20}{r_bar}'
         )
 

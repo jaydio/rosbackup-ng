@@ -423,7 +423,7 @@ def main() -> None:
         pbar_handler = ShellPbarHandler(
             total=len(targets_data),
             desc="Overall Progress",
-            bar_format='{desc:<20} {percentage:3.0f}%|{bar:20}| {n_fmt}/{total_fmt} routers [{elapsed}<{remaining}]'
+            bar_format='{desc:<20} {percentage:3.0f}%|{bar:20}| {n_fmt}/{total_fmt} targets [{elapsed}<{remaining}]'
         )
 
     successful_backups = 0
