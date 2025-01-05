@@ -1,4 +1,4 @@
-# RouterOS Backup Script (rosbackup-ng)
+# RouterOS Backup NG (rosbackup-ng)
 
 A robust Python-based utility for automating backups of multiple RouterOS devices via SSH. This tool supports both binary and plaintext backups, with features for backup retention management, parallel execution, and dry-run capabilities.
 
@@ -10,6 +10,7 @@ A robust Python-based utility for automating backups of multiple RouterOS device
 - **Comprehensive Logging**: Extensive logging with multiple levels and file rotation (since v0.1.0)
 - **Email Notifications**: Built-in email notifications for backup status (since v0.1.0)
 - **Dry-Run Mode**: Test configurations without making changes (since v0.1.0)
+- **Progress Bar**: Visual progress tracking for parallel backups (since v0.1.5)
 
 ### Recent Enhancements
 - **Enhanced Colors**: Distinct colors per router in logs with FORCE_COLOR/NO_COLOR support (v0.1.4)
@@ -19,12 +20,13 @@ A robust Python-based utility for automating backups of multiple RouterOS device
 - **Parallel Control**: Fine-grained control over parallel execution (v0.1.4)
 - **INFO Files**: Enhanced router information collection and formatting (v0.1.3)
 - **Timezone Support**: Configurable timezone handling for timestamps (v0.1.3)
+- **Progress Bar**: Added overall progress tracking with ETA for parallel backups (v0.1.5)
 
 ### Coming Soon
 - **Notification Channels**: Support for Telegram, Slack/Mattermost, NTFY, and webhooks
 - **Container Support**: Docker container and systemd timer support
 - **Advanced Features**: Certificate store export/restore, batch processing
-- **And more!** 🚀
+- **And more!** 
 
 ## Prerequisites
 
@@ -44,6 +46,7 @@ A robust Python-based utility for automating backups of multiple RouterOS device
 | `-p` | `--no-parallel` | false | No | Disable parallel execution |
 | `-m` | `--max-parallel` | None | No | Override maximum parallel backups (from global.yaml) |
 | `-t` | `--target` | None | No | Run backup on specific target only |
+| `-b` | `--progress-bar` | false | No | Show overall progress bar during parallel execution |
 
 ## Examples
 
@@ -70,6 +73,12 @@ A robust Python-based utility for automating backups of multiple RouterOS device
 
 # Target selection
 ./rosbackup.py --target MYR1              # Backup specific target only
+
+# Show progress bar during parallel backup
+./rosbackup.py --progress-bar
+
+# Progress bar with dry run
+./rosbackup.py --progress-bar --dry-run
 ```
 
 ## Directory Structure
@@ -78,29 +87,29 @@ A robust Python-based utility for automating backups of multiple RouterOS device
 .
 ├── backups/                    # Backup storage directory
 ├── config/                     # Configuration files
-│   ├── global.yaml            # Global settings (user created)
-│   ├── global.yaml.sample     # Global settings template
-│   ├── targets.yaml           # Router definitions (user created)
-│   └── targets.yaml.sample    # Router definitions template
-├── core/                      # Core functionality modules
-│   ├── backup_utils.py        # Backup operations and file handling
-│   ├── logging_utils.py       # Logging system and formatters
-│   ├── notification_utils.py  # Notification system (email, etc.)
-│   ├── router_utils.py        # Router information gathering
-│   ├── shell_utils.py         # Shell output formatting and colors
-│   ├── ssh_utils.py          # SSH connections and operations
-│   └── time_utils.py         # Timezone and timestamp operations
-├── doc/                       # Documentation
-│   ├── BOOTSTRAP.md          # Router setup guide
-│   └── SETUP.md              # Installation and configuration
-├── scripts/                   # Helper scripts
+│   ├── global.yaml             # Global settings (user created)
+│   ├── global.yaml.sample      # Global settings template
+│   ├── targets.yaml            # Router definitions (user created)
+│   └── targets.yaml.sample     # Router definitions template
+├── core/                       # Core functionality modules
+│   ├── backup_utils.py         # Backup operations and file handling
+│   ├── logging_utils.py        # Logging system and formatters
+│   ├── notification_utils.py   # Notification system (email, etc.)
+│   ├── router_utils.py         # Router information gathering
+│   ├── shell_utils.py          # Shell output formatting and colors
+│   ├── ssh_utils.py            # SSH connections and operations
+│   └── time_utils.py           # Timezone and timestamp operations
+├── doc/                        # Documentation
+│   ├── BOOTSTRAP.md            # Router setup guide
+│   └── SETUP.md                # Installation and configuration
+├── scripts/                    # Helper scripts
 │   └── rosbackup-ng-completion.bash  # Shell completion
-├── ssh-keys/                 # SSH key storage
-│   ├── private/             # Private keys (user created)
-│   └── public/              # Public keys (user created)
-├── bootstrap_router.py       # Router setup utility
-├── rosbackup.py             # Main backup script
-└── requirements.txt         # Python dependencies
+├── ssh-keys/                   # SSH key storage
+│   ├── private/                # Private keys (user created)
+│   └── public/                 # Public keys (user created)
+├── bootstrap_router.py         # Router setup utility
+├── rosbackup.py                # Main backup script
+└── requirements.txt            # Python dependencies
 ```
 
 ## Backup File Organization
@@ -393,19 +402,6 @@ The following features are planned for future releases.
 - Mattermost/Slack webhook integration
 - Generic webhook support for custom integrations
 - [...]
-
-### Upcoming Features
-- **Systemd**: Add support for systemd timers
-- **Cronjob**: Add examples for cronjob scheduling
-- **Docker**: Add Docker container support
-- **Retries**: Add retry mechanism for failed operations (e.g. during parallel execution)
-- **Interruptions**: Add cleanup procedures for interrupted backups
-- **Progress bar**: Add progress bars for long operations (parallel execution)
-- **Improved Dry-Run**: Add dry-run output improvements
-- **WebUI**: Access all features via a web user interface with REST API endpoint
-- **Certificate management**: Export functionality for certificate store
-- **Restore script**: Supports remote restore of certificate store
-- **Batch processing**: Streamlines `bootstrap_router.py` operations
 
 Missing a feature? Open an issue or send a PR :)
 
