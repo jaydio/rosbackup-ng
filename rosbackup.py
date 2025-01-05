@@ -318,18 +318,21 @@ def main() -> None:
     # Apply CLI overrides for parallel execution settings
     if args.no_parallel:
         global_config['parallel_backups'] = False
-        logger.info("Parallel execution disabled via CLI")
+        if not args.progress_bar:
+            logger.info("Parallel execution disabled via CLI")
     if args.max_parallel is not None:
         if args.max_parallel < 1:
             logger.error("max-parallel must be at least 1")
             sys.exit(1)
         global_config['max_parallel'] = args.max_parallel
-        logger.info(f"Maximum parallel backups set to {args.max_parallel} via CLI")
+        if not args.progress_bar:
+            logger.info(f"Maximum parallel backups set to {args.max_parallel} via CLI")
     
     # Handle timezone
     if 'timezone' in global_config_data:
         system_tz = get_system_timezone()
-        logger.info(f"Using timezone: {global_config_data['timezone']}")
+        if not args.progress_bar:
+            logger.info(f"Using timezone: {global_config_data['timezone']}")
         global_config['timezone'] = global_config_data['timezone']
         # Set timezone for logging
         LogManager().set_timezone(get_timezone(global_config['timezone']))
