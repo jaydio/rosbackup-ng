@@ -12,6 +12,7 @@ A robust Python-based utility for automating backups of multiple RouterOS device
 - **Dry-Run Mode**: Test configurations without making changes (since v0.1.0)
 - **Progress Bar**: Visual progress tracking for parallel backups (since v0.1.5)
 - **Automatic Router Setup**: Script for bootstrapping RouterOS devices with SSH keys and user permissions (since v0.1.4)
+  - Supports force mode for overwriting existing users (since v0.1.6)
 
 ### Recent Enhancements
 - **Enhanced Colors**: Distinct colors per router in logs with FORCE_COLOR/NO_COLOR support (v0.1.4)
@@ -48,6 +49,7 @@ A robust Python-based utility for automating backups of multiple RouterOS device
 | `-m` | `--max-parallel` | None | No | Override maximum parallel backups (from global.yaml) |
 | `-t` | `--target` | None | No | Run backup on specific target only |
 | `-b` | `--progress-bar` | false | No | Show overall progress bar during parallel execution |
+| `-f` | `--force` | false | No | Force mode for overwriting existing users |
 
 ## Examples
 
@@ -80,6 +82,9 @@ A robust Python-based utility for automating backups of multiple RouterOS device
 
 # Progress bar with dry run
 ./rosbackup.py --progress-bar --dry-run
+
+# Force mode for overwriting existing users
+./rosbackup.py --force
 ```
 
 ## Directory Structure

@@ -11,6 +11,7 @@ A utility for automating the setup of backup users on RouterOS devices. This too
 - **Interactive Mode**: Prompts for password if neither password nor key is provided
 - **Colored Logging**: Clear visual feedback with color-coded status messages
 - **Command Completion**: Bash/Zsh completion support for all options and file paths
+- **Force Mode**: Ability to recreate existing backup user with ```--force``` option
 
 ## Prerequisites
 
@@ -145,6 +146,17 @@ Password: Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8
 2025-01-03 21:33:27 [INFO] Bootstrap process completed successfully.
 ```
 
+### Force Mode
+
+To overwrite an existing backup user, use the `--force` option.
+
+```bash
+python3 bootstrap_router.py \
+    --host 192.168.88.1 \
+    --backup-user-public-key ssh-keys/public/id_rosbackup.pub \
+    --force
+```
+
 ## Command-Line Options
 
 | Short | Long | Default | Required | Description |
@@ -162,6 +174,7 @@ Password: Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8
 | `-l` | `--log-file` | - | No | Path to log file (no file logging if not set) |
 | `-n` | `--no-color` | false | No | Disable colored output |
 | `-d` | `--dry-run` | false | No | Show what would be done without making changes |
+| `-f` | `--force` | false | No | Overwrite existing backup user if it exists |
 
 \* Either `-P`/`--ssh-user-password` or `-i`/`--ssh-user-private-key` must be provided, or the script will prompt for password.
 

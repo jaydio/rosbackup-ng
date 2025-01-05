@@ -53,35 +53,39 @@ _bootstrap_router_completions()
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="--help --host --ssh-user --ssh-user-password --ssh-user-private-key --ssh-port --backup-user --backup-user-password --backup-user-public-key --backup-user-group --show-backup-credentials --log-file --no-color"
+    opts="-h --help -H --host -u --ssh-user -P --ssh-user-password -i --ssh-user-private-key \
+          -p --ssh-port -b --backup-user -B --backup-user-password -g --backup-user-group \
+          -k --backup-user-public-key -s --show-backup-credentials -l --log-file -n --no-color \
+          -d --dry-run -f --force"
 
     case "${prev}" in
-        --host)
-            # No completion for host, user needs to type IP/hostname
+        -H|--host)
+            # No completion for host addresses
             return 0
             ;;
-        --ssh-user|--backup-user)
+        -u|--ssh-user|-b|--backup-user)
             # No completion for usernames
             return 0
             ;;
-        --ssh-user-password|--backup-user-password)
+        -P|--ssh-user-password|-B|--backup-user-password)
             # No completion for passwords
             return 0
             ;;
-        --ssh-user-private-key|--backup-user-public-key)
+        -i|--ssh-user-private-key|-k|--backup-user-public-key)
             # Complete file paths
             COMPREPLY=( $(compgen -f -- ${cur}) )
             return 0
             ;;
-        --ssh-port)
+        -p|--ssh-port)
             # No completion for port numbers
             return 0
             ;;
-        --backup-user-group)
-            # No completion for group names
+        -g|--backup-user-group)
+            # Complete common RouterOS groups
+            COMPREPLY=( $(compgen -W "full read write" -- ${cur}) )
             return 0
             ;;
-        --log-file)
+        -l|--log-file)
             # Complete file paths
             COMPREPLY=( $(compgen -f -- ${cur}) )
             return 0

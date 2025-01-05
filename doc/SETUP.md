@@ -50,12 +50,14 @@
    
    a. Create symbolic links to existing keys:
    ```bash
+   mkdir -p ssh-keys/{public,private}
    ln -s ~/.ssh/id_rsa ssh-keys/private/id_rosbackup
    ln -s ~/.ssh/id_rsa.pub ssh-keys/public/id_rosbackup.pub
    ```
-   
+
    b. Generate new key pair:
    ```bash
+   mkdir -p ssh-keys/{public,private}
    ssh-keygen -t rsa -b 4096 -f ssh-keys/private/id_rosbackup -C "rosbackup"
    ```
 
@@ -80,6 +82,9 @@
    python3 bootstrap_router.py --host 192.168.88.1 \
        --backup-user-public-key ssh-keys/public/id_rosbackup.pub \
        --show-backup-credentials
+
+   # Force mode to overwrite existing user
+   python3 bootstrap_router.py --host 192.168.88.1 --backup-user-public-key ssh-keys/public/id_rosbackup.pub --force
    ```
    
    See [BOOTSTRAP.md](BOOTSTRAP.md) for detailed usage instructions.
