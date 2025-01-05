@@ -1,7 +1,7 @@
 # Version Information
 
 ## Current Version
-0.2.1
+0.2.0
 
 ## Versioning Format
 rosbackup-ng follows [Semantic Versioning 2.0.0](https://semver.org/):
@@ -22,7 +22,7 @@ MAJOR.MINOR.PATCH
    - New features that don't break existing functionality
    - Changes to optional parameters or configuration format
 
-3. **PATCH** version (1)
+3. **PATCH** version (0)
    - Incremented for backward compatible bug fixes
    - Performance improvements
    - Documentation updates
