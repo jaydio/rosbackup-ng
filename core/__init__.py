@@ -9,7 +9,7 @@ from .ssh_utils import SSHManager
 from .router_utils import RouterInfoManager
 from .notification_utils import NotificationManager
 from .logging_utils import LogManager
-from .shell_utils import ColoredFormatter
+from .shell_utils import ColoredFormatter, ShellPbarHandler
 
 __all__ = [
     'BackupManager',
@@ -17,5 +17,6 @@ __all__ = [
     'RouterInfoManager',
     'NotificationManager',
     'LogManager',
-    'ColoredFormatter'
+    'ColoredFormatter',
+    'ShellPbarHandler'
 ]
