@@ -282,17 +282,6 @@ Backup Progress      100%|██████████████████
 01-05-2025 23:45:13 [INFO] [SYSTEM] Backup completed. Success: 5, Failed: 0 [0m 15s]
 ```
 
-## Error Handling
-
-The tool implements comprehensive error handling for:
-- SSH connection failures
-- Authentication issues
-- Insufficient permissions
-- Backup creation failures
-- File transfer problems
-- Storage space issues
-- Network connectivity problems
-
 ## Command Completion
 
 For easier command-line usage, enable command completion for your current shell session:
@@ -307,6 +296,21 @@ This provides:
 - Target name completion from targets.yaml
 
 The completion script supports both `rosbackup.py` and `bootstrap_router.py` commands.
+
+For example, type `./rosbackup.py --` and press <kbd>Tab</kbd> to see all available options.
+
+Or type `./bootstrap_router.py --host 192.168.1.1 --backup-user-` and press <kbd>Tab</kbd>.
+
+## Error Handling
+
+The tool implements comprehensive error handling for:
+- SSH connection failures
+- Authentication issues
+- Insufficient permissions
+- Backup creation failures
+- File transfer problems
+- Storage space issues
+- Network connectivity problems
 
 ## Logging
 
