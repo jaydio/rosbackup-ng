@@ -10,7 +10,9 @@ import logging
 import os
 import sys
 import hashlib
+from typing import Optional, List, Any
 from colorama import Fore, Style, init as colorama_init
+from tqdm import tqdm
 
 def supports_color():
     """Check if the terminal supports color output."""
@@ -144,3 +146,62 @@ class ColoredFormatter(BaseFormatter):
             record.msg = original_msg
             record.levelname = original_levelname
             record.target_name = original_target_name
+
+
+class ShellPbarHandler:
+    """Handler for shell progress bars."""
+    
+    def __init__(self, total: int, desc: str = "", position: int = 0,
+                 leave: bool = True, ncols: int = 80, bar_format: str = None):
+        """Initialize progress bar."""
+        self.total = total
+        self.desc = desc
+        self.position = position
+        self.leave = leave
+        self.ncols = ncols
+        self.pbar = tqdm(
+            total=total,
+            desc=desc,
+            position=position,
+            leave=leave,
+            ncols=ncols,
+            bar_format=bar_format or '{desc:<30} {percentage:3.0f}%|{bar:20}{r_bar}'
+        )
+
+    def update(self, n: int = 1, desc: Optional[str] = None):
+        """Update progress bar."""
+        if desc:
+            self.pbar.set_description_str(desc)
+        self.pbar.update(n)
+
+    def close(self):
+        """Close progress bar."""
+        self.pbar.close()
+
+    @classmethod
+    def create_multi_bar(cls, total: int, names: List[str], position: int = 0,
+                        leave: bool = True, ncols: int = 80) -> List['ShellPbarHandler']:
+        """Create multiple progress bars."""
+        # Create main progress bar
+        main_bar = cls(total=len(names), desc="", position=position, leave=leave, ncols=ncols)
+        
+        # Create individual progress bars for each target
+        bars = []
+        for i, name in enumerate(names):
+            bar = cls(
+                total=total,
+                desc=name,
+                position=position + i + 1,  # +1 to account for main bar
+                leave=leave,
+                ncols=ncols
+            )
+            bars.append(bar)
+        
+        # Return all bars with main bar first
+        return [main_bar] + bars
+
+    def set_complete(self):
+        """Mark progress bar as complete."""
+        if not self.pbar.n >= self.pbar.total:
+            self.pbar.n = self.pbar.total
+            self.pbar.refresh()
