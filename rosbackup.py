@@ -229,6 +229,12 @@ def backup_target(
         backup_dir = backup_path / f"{router_info_dict['identity']}_{target['host']}_ROS{clean_version}_{router_info_dict['architecture_name']}"
         os.makedirs(backup_dir, exist_ok=True)
 
+        # Save router info file
+        info_file = backup_dir / f"{router_info_dict['identity']}_{clean_version}_{router_info_dict['architecture_name']}_{timestamp}.info"
+        if not backup_manager.save_info_file(router_info_dict, info_file, dry_run):
+            logger.error("Failed to save router info file")
+            return False
+
         # Perform binary backup if enabled
         binary_success = True
         if target.get('enable_binary_backup', True):
