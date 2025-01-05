@@ -1,19 +1,26 @@
 targets:
-  - name: MYR1
-    enabled: true
-    host: 192.168.88.1
+  - name: MYR1                  # Router name (required)
+    host: 192.168.88.1          # Router IP/hostname (required)
+    enabled: true               # Enable this target (optional, default: true)
+    
+    # SSH settings (override global settings)
     ssh:
-      port: 22
-      user: rosbackup
-      private_key: ./ssh-keys/private/id_rosbackup
-      args:
-        auth_timeout: 5
-        channel_timeout: 5
-        compress: true
-    backup_password: SpecificPassword
-    backup_retention_days: -1
-    encrypted: false
-    enable_binary_backup: true
-    enable_plaintext_backup: true
-    keep_binary_backup: false
-    keep_plaintext_backup: false
+      #port: 22                  # SSH port (optional, default: 22)
+      #user: rosbackup           # SSH username (optional)
+      private_key: ./ssh-keys/private/id_rosbackup  # SSH private key path (required)
+      # Note: Only SSH key-based authentication is supported for security
+      
+      # Override global SSH args
+      args:                     # All SSH args are optional
+        #auth_timeout: 5        # Authentication response timeout (default: 5)
+        #channel_timeout: 5     # Channel open timeout (default: 5)
+        #compress: true         # Enable transport layer compression (default: true)
+    
+    # Backup settings
+    backup_password: SpecificPassword  # Target-specific backup password (optional)
+    backup_retention_days: -1          # Backup retention days (optional, default: 90)
+    encrypted: false                   # Enable backup encryption (optional, default: false)
+    enable_binary_backup: true         # Enable binary backup (optional, default: true)
+    enable_plaintext_backup: true      # Enable plaintext backup (optional, default: true)
+    keep_binary_backup: false          # Keep binary backup (optional, default: false)
+    keep_plaintext_backup: false       # Keep plaintext backup (optional, default: false)

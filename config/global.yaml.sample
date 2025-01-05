@@ -1,55 +1,62 @@
-# Backup Settings
+# Global configuration for RouterOS Backup NG
+
+# Parent directory for storing backups (required)
 backup_path_parent: backups
-backup_retention_days: 90
+
+# Days to keep backups, -1 for infinite (optional, default: 90)
+#backup_retention_days: 90
+
+# Global backup password (optional)
 backup_password: your-global-backup-password
 
-# Timezone Settings
-# Comment out to use system timezone
+# Timezone for timestamps (optional, default: system timezone)
 # Examples: 'Asia/Manila', 'Europe/Berlin', 'America/New_York'
 #timezone: Europe/Berlin
 
-# SSH Settings
+# SSH settings
 ssh:
-  user: rosbackup
-  timeout: 5  # Connection timeout in seconds
-  auth_timeout: 5  # Authentication timeout in seconds
-  known_hosts_file: null  # Optional: Path to known_hosts file
-  add_target_host_key: true  # Whether to automatically add target host keys
+  user: rosbackup            # Default SSH username (required)
+  #timeout: 5                 # Connection timeout (optional, default: 5)
+  #auth_timeout: 5            # Authentication timeout (optional, default: 5)
+  #known_hosts_file: null     # Known hosts file path (optional)
+  #add_target_host_key: true  # Auto-add target host keys (optional, default: true)
+
+  # SSH connection arguments
   args:
-    look_for_keys: false
-    allow_agent: false
-    compress: true  # Enable for slower connections
-    auth_timeout: 5
-    channel_timeout: 5
-    disabled_algorithms:  # Dict of algorithms to disable (see: https://docs.paramiko.org/en/stable/api/transport.html#paramiko.transport.Transport.disabled_algorithms)
-      pubkeys: ["rsa-sha1"]  # Disable specific algorithms
-    keepalive_interval: 60  # Send keepalive every minute
-    keepalive_countmax: 3   # Disconnect after 3 failed keepalives
+    #look_for_keys: false     # Search for SSH keys in ~/.ssh/ (optional, default: false)
+    #allow_agent: false       # Allow SSH agent forwarding (optional, default: false)
+    #compress: true           # Enable SSH compression (optional, default: true)
+    #auth_timeout: 5          # SSH auth timeout (optional, default: 5)
+    #channel_timeout: 5       # SSH channel timeout (optional, default: 5)
+    #disabled_algorithms:     # Dict of algorithms to disable (optional)
+      #pubkeys: ["rsa-sha1"]  # Disable specific algorithms
+    #keepalive_interval: 60   # Keepalive interval (optional, default: 60)
+    #keepalive_countmax: 3    # Max failed keepalives (optional, default: 3)
 
 # Performance Settings
-parallel_execution: true
-max_parallel_backups: 5
+#parallel_execution: true     # Enable parallel backups (optional, default: true)
+#max_parallel_backups: 5      # Maximum concurrent backups (optional, default: 5)
 
 # Logging Settings
-log_file_enabled: false
-log_file: ./rosbackup.log
-log_level: INFO
-log_retention_days: 90
+#log_file_enabled: false      # Enable logging to file (optional, default: false)
+#log_file: ./rosbackup.log    # Log file path (optional if log_file_enabled is false)
+#log_level: INFO              # Logging level (optional, default: INFO)
+#log_retention_days: 90       # Days to keep logs (optional, default: 90)
 
 # Notification Settings
-notifications_enabled: false
-notify_on_failed_backups: true
-notify_on_successful_backups: false
+#notifications_enabled: false         # Enable notifications (optional, default: false)
+#notify_on_failed_backups: true       # Notify on failures (optional, default: true)
+#notify_on_successful_backups: false  # Notify on success (optional, default: false)
 
 # SMTP Settings
 smtp:
-  enabled: false
-  host: smtp.example.com
-  port: 587
-  username: notifications@example.com
-  password: your-smtp-password
-  from_email: notifications@example.com
-  to_emails: 
+  enabled: false                        # Enable SMTP (required if notifications enabled)
+  host: smtp.example.com                # SMTP server hostname (required if smtp enabled)
+  port: 587                             # SMTP server port (required if smtp enabled)
+  username: notifications@example.com   # SMTP username (required if smtp enabled)
+  password: your-smtp-password          # SMTP password (required if smtp enabled)
+  from_email: notifications@example.com # Sender email (required if smtp enabled)
+  to_emails:                            # List of recipients (required if smtp enabled)
     - admin@example.com
-  use_tls: true
-  use_ssl: false
+  use_tls: true                         # Use STARTTLS (optional, default: true)
+  use_ssl: false                        # Use SSL/TLS (optional, default: false)
