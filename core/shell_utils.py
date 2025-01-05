@@ -69,7 +69,15 @@ TARGET_COLORS = [
 
 
 def get_target_color(target_name: str) -> str:
-    """Get a consistent color for a target name."""
+    """
+    Get a consistent color for a target name.
+    
+    Args:
+        target_name: Name of the target to get color for
+        
+    Returns:
+        str: ANSI color code for the target
+    """
     if target_name == 'SYSTEM':
         return Fore.WHITE
     # Use a more deterministic hash based on the target name
@@ -92,8 +100,12 @@ class BaseFormatter(logging.Formatter):
 
     def format(self, record):
         """Format the log record."""
+        # Always set target_name if not present
         if not hasattr(record, 'target_name'):
             record.target_name = self.target_name
+        # Handle paramiko logs
+        if record.name == 'paramiko.transport' and record.msg in ['Connected (version 2.0, client ROSSSH)', 'Authentication (publickey) successful!']:
+            return ''  # Skip these messages
         return super().format(record)
 
 

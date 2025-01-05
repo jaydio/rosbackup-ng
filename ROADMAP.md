@@ -5,13 +5,20 @@ This document outlines the planned features and improvements for future releases
 ## Planned Features
 
 ### 1. Additional Notification Channels
-- [ ] Telegram integration for backup status notifications
-- [ ] NTFY.sh support for push notifications
-- [ ] Mattermost/Slack webhook integration
-- [ ] Generic webhook support for custom integrations
+- [ ] Generic webhook support
+- [ ] Telegram integration
+- [ ] NTFY.sh for push notifications)
+- [ ] Healthchecks.io integration
+- [ ] Mattermost/Slack (via webhook)
+- [ ] OpsGenie integration
+- [ ] PagerDuty integration
+- [ ] Discord integration
+- [ ] Gotify / NOTIFYRUN integration
 - [ ] ... insert more notification channels ...
 
 ### 2. Backup Enhancements
+- [ ] Use a temporary ramdisk to store binary backup
+      - Instead of saving to primary storage of target
 - [ ] Support for certificate store backup
 - [ ] Automatic certificate renewal tracking
 

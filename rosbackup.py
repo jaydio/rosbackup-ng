@@ -149,7 +149,7 @@ def backup_target(
     backup_path: Path,
     dry_run: bool = False,
     config: Optional[GlobalConfig] = None,
-    progress_callback: Optional[callable] = None
+    suppress_logs: bool = False
 ) -> bool:
     """
     Backup a single target's configuration.
@@ -162,7 +162,7 @@ def backup_target(
         backup_path: Path to store backups
         dry_run: If True, simulate operations
         config: Optional global configuration
-        progress_callback: Optional callback for progress updates
+        suppress_logs: If True, suppress log messages (used with progress bar)
 
     Returns:
         bool: True if backup successful, False otherwise
@@ -178,13 +178,11 @@ def backup_target(
     logger = LogManager().get_logger('BACKUP', target_name)
 
     if dry_run:
-        logger.info(f"[DRY RUN] Would backup target: {target_name}")
+        if not suppress_logs:
+            logger.info(f"[DRY RUN] Would backup target: {target_name}")
         return True
 
     try:
-        if progress_callback:
-            progress_callback(1, f"{target_name} (Connecting)")
-
         # Initialize managers
         ssh = SSHManager(ssh_args, target_name)
         router_info = RouterInfoManager(ssh, target_name)
@@ -193,7 +191,8 @@ def backup_target(
         # Get private key path from target or global config
         key_path = target.get('private_key', ssh_args.get('private_key'))
         if not key_path:
-            logger.error("No private key specified in target or global config")
+            if not suppress_logs:
+                logger.error("No private key specified in target or global config")
             return False
 
         # Get SSH user from target or global config
@@ -204,24 +203,21 @@ def backup_target(
             host=target['host'],
             port=target.get('port', 22),
             username=ssh_user,
-            key_path=key_path
+            key_path=key_path,
+            suppress_logs=suppress_logs
         )
         
         if not ssh_client:
-            logger.error("Failed to establish SSH connection")
+            if not suppress_logs:
+                logger.error("Failed to establish SSH connection")
             return False
-
-        if progress_callback:
-            progress_callback(2, f"{target_name} (Getting Info)")
 
         # Get router information
         router_info_dict = router_info.get_router_info(ssh_client)
         if not router_info_dict:
-            logger.error("Failed to retrieve router information")
+            if not suppress_logs:
+                logger.error("Failed to retrieve router information")
             return False
-
-        if progress_callback:
-            progress_callback(3, f"{target_name} (Creating Backup)")
 
         # Create backup directory
         timestamp = get_timestamp(get_timezone(config.get('timezone') if config else None))
@@ -232,27 +228,29 @@ def backup_target(
         # Save router info file
         info_file = backup_dir / f"{router_info_dict['identity']}_{clean_version}_{router_info_dict['architecture_name']}_{timestamp}.info"
         if not backup_manager.save_info_file(router_info_dict, info_file, dry_run):
-            logger.error("Failed to save router info file")
+            if not suppress_logs:
+                logger.error("Failed to save router info file")
             return False
 
-        # Perform binary backup if enabled
+        # Perform binary backup if enabled (default: True)
         binary_success = True
         if target.get('enable_binary_backup', True):
             binary_success, binary_file = backup_manager.perform_binary_backup(
                 ssh_client=ssh_client,
                 router_info=router_info_dict,
                 backup_password=target.get('backup_password', backup_password),
-                encrypted=target.get('encrypted', True),
+                encrypted=target.get('encrypted', False),
                 backup_dir=backup_dir,
                 timestamp=timestamp,
                 keep_binary_backup=target.get('keep_binary_backup', False),
                 dry_run=dry_run
             )
             if not binary_success:
-                logger.error("Binary backup failed")
+                if not suppress_logs:
+                    logger.error("Binary backup failed")
                 return False
 
-        # Perform plaintext backup if enabled
+        # Perform plaintext backup if enabled (default: True)
         plaintext_success = True
         plaintext_file = None
         if target.get('enable_plaintext_backup', True):
@@ -265,7 +263,8 @@ def backup_target(
                 dry_run=dry_run
             )
             if not plaintext_success:
-                logger.error("Plaintext backup failed")
+                if not suppress_logs:
+                    logger.error("Plaintext backup failed")
                 return False
 
         # Both backups succeeded
@@ -274,13 +273,15 @@ def backup_target(
                 notifier.send_success_notification(target_name)
             return True
         else:
-            logger.error("One or more backup operations failed")
+            if not suppress_logs:
+                logger.error("One or more backup operations failed")
             if notifier.enabled and notifier.notify_on_failed:
                 notifier.send_failure_notification(target_name)
             return False
 
     except Exception as e:
-        logger.error(f"Backup failed: {str(e)}")
+        if not suppress_logs:
+            logger.error(f"Backup failed: {str(e)}")
         if notifier.enabled and notifier.notify_on_failed:
             notifier.send_failure_notification(target_name, str(e))
         return False
@@ -331,8 +332,8 @@ def main() -> None:
     global_config: GlobalConfig = {
         'backup_path': global_config_data.get('backup_path_parent', 'backups'),
         'backup_password': global_config_data.get('backup_password', ''),
-        'parallel_backups': global_config_data.get('parallel_execution', False),
-        'max_parallel': global_config_data.get('max_parallel_backups', 4),
+        'parallel_backups': global_config_data.get('parallel_execution', True),
+        'max_parallel': global_config_data.get('max_parallel_backups', 5),
         'notifications': global_config_data.get('notifications', {}),
         'ssh': global_config_data.get('ssh', {}),
     }
@@ -365,7 +366,7 @@ def main() -> None:
     backup_path = Path(global_config['backup_path'])
     os.makedirs(backup_path, exist_ok=True)
 
-    # Initialize notification system
+    # Initialize notification system with defaults
     notifier = NotificationManager(
         enabled=global_config['notifications'].get('enabled', False),
         notify_on_failed=global_config['notifications'].get('notify_on_failed_backups', True),
@@ -374,16 +375,16 @@ def main() -> None:
             'enabled': global_config['notifications'].get('smtp', {}).get('enabled', False),
             'host': global_config['notifications'].get('smtp', {}).get('host', 'localhost'),
             'port': global_config['notifications'].get('smtp', {}).get('port', 25),
-            'username': global_config['notifications'].get('smtp', {}).get('username'),
-            'password': global_config['notifications'].get('smtp', {}).get('password'),
-            'from_email': global_config['notifications'].get('smtp', {}).get('from_email'),
+            'username': global_config['notifications'].get('smtp', {}).get('username', ''),
+            'password': global_config['notifications'].get('smtp', {}).get('password', ''),
+            'from_email': global_config['notifications'].get('smtp', {}).get('from_email', ''),
             'to_emails': global_config['notifications'].get('smtp', {}).get('to_emails', []),
             'use_ssl': global_config['notifications'].get('smtp', {}).get('use_ssl', False),
             'use_tls': global_config['notifications'].get('smtp', {}).get('use_tls', True)
         }
     )
 
-    # Load SSH configuration
+    # Load SSH configuration with defaults
     ssh_config = global_config['ssh']
     ssh_args = {
         'look_for_keys': ssh_config.get('args', {}).get('look_for_keys', False),
@@ -435,7 +436,7 @@ def main() -> None:
             desc="Backup Progress",
             position=0,
             leave=True,
-            ncols=80,
+            ncols=100,
             bar_format='{desc:<20} {percentage:3.0f}%|{bar:40}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
         )
     else:
@@ -444,6 +445,7 @@ def main() -> None:
     # Execute backups
     success_count = 0
     failure_count = 0
+    failed_targets = []
 
     if global_config['parallel_backups'] and len(targets_data) > 1:
         max_workers = min(global_config['max_parallel'], len(targets_data))
@@ -475,68 +477,84 @@ def main() -> None:
                         notifier=notifier,
                         backup_path=backup_path,
                         dry_run=args.dry_run,
-                        config=global_config
+                        config=global_config,
+                        suppress_logs=True
                     )
-                    futures.append(future)
+                    futures.append((target, future))
 
-                for future in concurrent.futures.as_completed(futures):
+                for target, future in [(t, f) for t, f in futures]:
                     try:
                         if future.result():
                             success_count += 1
+                        else:
+                            failure_count += 1
+                            failed_targets.append(target.get('name', target.get('host', 'Unknown')))
                         if pbar:
                             pbar.update(1)
                     except Exception as e:
-                        logger.error(f"Backup failed: {str(e)}")
                         failure_count += 1
+                        failed_targets.append(target.get('name', target.get('host', 'Unknown')))
                         if pbar:
                             pbar.update(1)
-        finally:
-            if pbar:
-                pbar.close()
+                        if not args.progress_bar:
+                            logger.error(f"Backup failed: {str(e)}")
+
+        except KeyboardInterrupt:
+            logger.error("Backup operation interrupted by user")
+            sys.exit(1)
     else:
-        if not args.progress_bar and len(targets_data) > 1:
+        # Sequential backup
+        if not args.progress_bar:
             logger.info("Running sequential backup")
+        
+        for target in targets_data:
+            try:
+                # Merge target-specific SSH configuration
+                target_ssh = target.get('ssh', {})
+                target_ssh_args = target_ssh.get('args', {})
+                target_ssh_args.update({
+                    'port': target_ssh.get('port', 22),
+                    'username': target_ssh.get('user', ssh_args.get('user', 'rosbackup')),
+                    'private_key': target_ssh.get('private_key', ssh_args.get('private_key'))
+                })
+                
+                # Create a copy of global SSH args and update with target-specific args
+                target_args = ssh_args.copy()
+                target_args.update(target_ssh_args)
 
-        try:
-            for target in targets_data:
-                target_name = target.get('name', target.get('host', 'Unknown'))
-                try:
-                    # Merge target-specific SSH configuration
-                    target_ssh = target.get('ssh', {})
-                    target_ssh_args = target_ssh.get('args', {})
-                    target_ssh_args.update({
-                        'port': target_ssh.get('port', 22),
-                        'username': target_ssh.get('user', ssh_args.get('user', 'rosbackup')),
-                        'private_key': target_ssh.get('private_key', ssh_args.get('private_key'))
-                    })
-                    
-                    # Create a copy of global SSH args and update with target-specific args
-                    target_args = ssh_args.copy()
-                    target_args.update(target_ssh_args)
-
-                    success = backup_target(
-                        target=target,
-                        ssh_args=target_args,
-                        backup_password=global_config['backup_password'],
-                        notifier=notifier,
-                        backup_path=backup_path,
-                        dry_run=args.dry_run,
-                        config=global_config
-                    )
-                    if success:
-                        success_count += 1
-                    else:
-                        failure_count += 1
-                    if pbar:
-                        pbar.update(1)
-                except Exception as e:
-                    logger.error(f"Backup failed for {target_name}: {str(e)}")
+                if backup_target(
+                    target=target,
+                    ssh_args=target_args,
+                    backup_password=global_config['backup_password'],
+                    notifier=notifier,
+                    backup_path=backup_path,
+                    dry_run=args.dry_run,
+                    config=global_config,
+                    suppress_logs=True
+                ):
+                    success_count += 1
+                else:
                     failure_count += 1
-                    if pbar:
-                        pbar.update(1)
-        finally:
-            if pbar:
-                pbar.close()
+                    failed_targets.append(target.get('name', target.get('host', 'Unknown')))
+                if pbar:
+                    pbar.update(1)
+            except Exception as e:
+                failure_count += 1
+                failed_targets.append(target.get('name', target.get('host', 'Unknown')))
+                if pbar:
+                    pbar.update(1)
+                if not args.progress_bar:
+                    logger.error(f"Backup failed: {str(e)}")
+
+    if pbar:
+        pbar.close()
+        print()  # Add newline after progress bar
+        if failed_targets:
+            print("Failed backups:")
+            for target in failed_targets:
+                print(f"  - {target}")
+    else:
+        logger.info(f"Backup completed: {success_count} succeeded, {failure_count} failed")
 
     # Log final status
     duration = datetime.now() - start_time

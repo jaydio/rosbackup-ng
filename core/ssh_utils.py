@@ -61,7 +61,7 @@ class SSHManager:
         logger (logging.Logger): Logger instance for this class
     """
 
-    def __init__(self, ssh_args: Dict[str, Any], target_name: str) -> None:
+    def __init__(self, ssh_args: Dict[str, Any], target_name: str = 'SYSTEM'):
         """
         Initialize SSH manager.
 
@@ -73,40 +73,163 @@ class SSHManager:
         self.target_name = target_name
         self.logger = LogManager().get_logger('SSH', target_name)
 
+        # Configure paramiko logging
+        paramiko_logger = logging.getLogger('paramiko')
+        paramiko_logger.setLevel(logging.WARNING)  # Only show warnings and errors
+
+        # Add our custom formatter to paramiko's logger
+        for handler in paramiko_logger.handlers:
+            handler.setFormatter(BaseFormatter(target_name=target_name))
+
     def create_client(
         self,
         host: str,
-        port: int,
-        username: str,
-        key_path: str,
-        timeout: int = 30
+        port: int = 22,
+        username: str = 'rosbackup',
+        key_path: Optional[str] = None,
+        suppress_logs: bool = False
     ) -> Optional[paramiko.SSHClient]:
         """
         Create a new SSH client connection.
 
-        Creates and configures a new SSH client with the specified parameters,
-        using key-based authentication.
-
         Args:
-            host: Target hostname or IP address
-            port: Target SSH port
+            host: Target hostname or IP
+            port: SSH port number
             username: SSH username
-            key_path: Path to SSH private key file
-            timeout: Connection timeout in seconds
+            key_path: Path to SSH private key
+            suppress_logs: If True, suppress log messages (used with progress bar)
 
         Returns:
-            Connected SSHClient instance or None if connection fails
-
-        Error Handling:
-            - Logs authentication failures
-            - Handles connection timeouts
-            - Manages key loading errors
-            - Reports network connectivity issues
+            Connected SSH client or None if connection fails
         """
         try:
-            # Log connection attempt
-            self.logger.debug(f"Connecting to {host}:{port} as {username}")
+            client = paramiko.SSHClient()
+            client.load_system_host_keys()
+            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
+            # Load private key
+            if not key_path:
+                if not suppress_logs:
+                    self.logger.error("No private key specified")
+                return None
+            try:
+                pkey = paramiko.RSAKey.from_private_key_file(key_path)
+            except Exception as e:
+                if not suppress_logs:
+                    self.logger.error(f"Failed to load private key: {str(e)}")
+                return None
+
+            # Connect to the router
+            try:
+                # Map our config parameters to paramiko's expected arguments
+                connect_args = {
+                    'hostname': host,
+                    'port': port,
+                    'username': username,
+                    'pkey': pkey,
+                    'timeout': self.ssh_args.get('timeout', 30),
+                    'allow_agent': self.ssh_args.get('allow_agent', False),
+                    'look_for_keys': self.ssh_args.get('look_for_keys', False),
+                    'compress': self.ssh_args.get('compress', True),
+                    'auth_timeout': self.ssh_args.get('auth_timeout', 5),
+                    'banner_timeout': self.ssh_args.get('banner_timeout', 5),
+                    'disabled_algorithms': self.ssh_args.get('disabled_algorithms', {})
+                }
+                
+                client.connect(**connect_args)
+            except paramiko.AuthenticationException:
+                if not suppress_logs:
+                    self.logger.error("Authentication failed")
+                return None
+            except paramiko.SSHException as e:
+                if not suppress_logs:
+                    self.logger.error(f"SSH error: {str(e)}")
+                return None
+            except socket.error as e:
+                if not suppress_logs:
+                    self.logger.error(f"Socket error: {str(e)}")
+                return None
+            except Exception as e:
+                if not suppress_logs:
+                    self.logger.error(f"Connection failed: {str(e)}")
+                return None
+
+            return client
+
+        except Exception as e:
+            if not suppress_logs:
+                self.logger.error(f"Failed to create SSH client: {str(e)}")
+            return None
+
+    def execute_command(
+        self,
+        ssh_client: paramiko.SSHClient,
+        command: str,
+        timeout: Optional[int] = None,
+        get_pty: bool = False
+    ) -> Tuple[str, str, int]:
+        """
+        Execute command on remote host.
+        
+        Args:
+            ssh_client: Connected SSH client
+            command: Command to execute
+            timeout: Command execution timeout
+            get_pty: Whether to request a PTY
+            
+        Returns:
+            Tuple containing:
+            - stdout output
+            - stderr output
+            - exit status
+        """
+        try:
+            stdin, stdout, stderr = ssh_client.exec_command(command, timeout=timeout, get_pty=get_pty)
+            stdout_str = stdout.read().decode('utf-8').strip()
+            stderr_str = stderr.read().decode('utf-8').strip()
+            exit_status = stdout.channel.recv_exit_status()
+            
+            if stderr_str:
+                self.logger.debug(f"Command '{command}' returned error: {stderr_str}")
+            
+            return stdout_str, stderr_str, exit_status
+
+        except Exception as e:
+            self.logger.error(f"Error executing command '{command}': {str(e)}")
+            raise RuntimeError(f"Command execution failed: {str(e)}")
+
+    def get_client(
+        self,
+        target: str,
+        host: str,
+        port: int,
+        username: str,
+        key_file: Optional[str] = None,
+        known_hosts_file: Optional[str] = None,
+        add_host_key: bool = True,
+        timeout: int = 5
+    ) -> paramiko.SSHClient:
+        """
+        Get SSH client for target.
+        
+        Args:
+            target: Target name for logging
+            host: Hostname to connect to
+            port: Port to connect to
+            username: Username for authentication
+            key_file: Path to SSH private key file
+            known_hosts_file: Path to known hosts file
+            add_host_key: Whether to add unknown host keys
+            timeout: Connection timeout
+            
+        Returns:
+            Connected SSH client
+            
+        Raises:
+            paramiko.SSHException: If connection fails
+            paramiko.AuthenticationException: If authentication fails
+        """
+        try:
             # Create SSH client
             client = paramiko.SSHClient()
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -114,16 +237,19 @@ class SSHManager:
             # Configure paramiko logging
             paramiko_logger = logging.getLogger('paramiko')
             paramiko_logger.setLevel(logging.WARNING)  # Only show warnings and errors
-            paramiko_logger.addFilter(ParamikoFilter(self.target_name))
+            paramiko_logger.addFilter(ParamikoFilter(target))
             for handler in paramiko_logger.handlers:
-                handler.setFormatter(ParamikoFormatter(self.target_name))
+                handler.setFormatter(ParamikoFormatter(target))
 
             # Load private key
-            try:
-                key = paramiko.RSAKey.from_private_key_file(key_path)
-            except Exception as e:
-                self.logger.error(f"Failed to load private key: {str(e)}")
-                return None
+            if key_file:
+                try:
+                    key = paramiko.RSAKey.from_private_key_file(key_file)
+                except Exception as e:
+                    self.logger.error(f"Failed to load private key: {str(e)}")
+                    raise paramiko.AuthenticationException(f"Failed to load private key: {str(e)}")
+            else:
+                key = None
 
             # Connect to host
             client.connect(
@@ -144,55 +270,21 @@ class SSHManager:
 
             return client
 
-        except paramiko.AuthenticationException:
-            self.logger.error(f"Authentication failed for {username}@{host}")
-            return None
+        except paramiko.AuthenticationException as e:
+            self.logger.error(f"Authentication failed for {username}@{host}: {str(e)}")
+            raise paramiko.AuthenticationException(f"Authentication failed for {username}@{host}: {str(e)}")
 
         except paramiko.SSHException as e:
             self.logger.error(f"SSH error: {str(e)}")
-            return None
+            raise paramiko.SSHException(f"SSH error: {str(e)}")
 
         except socket.error as e:
             self.logger.error(f"Socket error: {str(e)}")
-            return None
+            raise paramiko.SSHException(f"Socket error: {str(e)}")
 
         except Exception as e:
             self.logger.error(f"Connection failed: {str(e)}")
-            return None
-
-    def execute_command(
-        self,
-        ssh_client: paramiko.SSHClient,
-        command: str,
-        timeout: int = 10
-    ) -> Tuple[str, str]:
-        """
-        Execute a command on the remote host.
-
-        Args:
-            ssh_client: Connected SSH client
-            command: Command to execute
-            timeout: Command timeout in seconds
-
-        Returns:
-            Tuple of (stdout, stderr) strings
-
-        Raises:
-            RuntimeError: If command execution fails
-        """
-        try:
-            stdin, stdout, stderr = ssh_client.exec_command(command, timeout=timeout)
-            stdout_str = stdout.read().decode('utf-8').strip()
-            stderr_str = stderr.read().decode('utf-8').strip()
-            
-            if stderr_str:
-                self.logger.debug(f"Command '{command}' returned error: {stderr_str}")
-            
-            return stdout_str, stderr_str
-
-        except Exception as e:
-            self.logger.error(f"Error executing command '{command}': {str(e)}")
-            raise RuntimeError(f"Command execution failed: {str(e)}")
+            raise paramiko.SSHException(f"Connection failed: {str(e)}")
 
     def check_file_exists(self, ssh_client: paramiko.SSHClient, file_path: str) -> bool:
         """

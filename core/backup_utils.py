@@ -152,6 +152,55 @@ class BackupResult(TypedDict):
     error_message: Optional[str]
 
 
+class BackupConfig(TypedDict):
+    """Backup configuration type definition."""
+    backup_path_parent: str
+    backup_retention_days: Optional[int]
+    backup_password: Optional[str]
+    timezone: Optional[str]
+    parallel_execution: Optional[bool]
+    max_parallel_backups: Optional[int]
+    log_file_enabled: Optional[bool]
+    log_file: Optional[str]
+    log_level: Optional[str]
+    log_retention_days: Optional[int]
+
+
+class TargetConfig(TypedDict):
+    """Target configuration type definition.
+
+    Required Fields:
+        host: Hostname or IP address
+        port: SSH port number (default: 22)
+        user: SSH username (default: 'rosbackup')
+
+    Optional Fields:
+        key_file: Path to SSH private key
+        known_hosts_file: Path to known hosts file
+        add_target_host_key: Whether to add target host key (default: True)
+        keep_binary_backup: Keep binary backup on router (default: False)
+        keep_plaintext_backup: Keep plaintext backup on router (default: False)
+        encrypted: Enable backup encryption (default: False)
+        enable_binary_backup: Enable binary backup creation (default: True)
+        enable_plaintext_backup: Enable plaintext backup creation (default: True)
+        backup_password: Target-specific backup password
+        backup_retention_days: Target-specific retention period (default: 90)
+    """
+    host: str
+    port: int
+    user: str
+    key_file: Optional[str]
+    known_hosts_file: Optional[str]
+    add_target_host_key: Optional[bool]
+    keep_binary_backup: Optional[bool]
+    keep_plaintext_backup: Optional[bool]
+    encrypted: Optional[bool]
+    enable_binary_backup: Optional[bool]
+    enable_plaintext_backup: Optional[bool]
+    backup_password: Optional[str]
+    backup_retention_days: Optional[int]
+
+
 class BackupManager:
     """
     Manages RouterOS backup operations.
@@ -264,11 +313,11 @@ class BackupManager:
             backup_cmd += f" name=\"{remote_path}\""
 
             # Execute backup command
-            stdout, stderr = self.ssh_manager.execute_command(ssh_client, backup_cmd)
+            stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, backup_cmd)
             self.logger.debug(f"Backup command: {backup_cmd}")
             self.logger.debug(f"Stdout: {stdout}")
             self.logger.debug(f"Stderr: {stderr}")
-            if stderr:
+            if stderr or exit_status != 0:
                 self.logger.error(f"Error creating backup: {stderr}")
                 return False, None
 
@@ -278,10 +327,10 @@ class BackupManager:
             self.logger.debug(f"Checking for backup file: {remote_path}")
             # Use /file print to check for file existence
             check_cmd = f"/file print where name=\"{remote_path}\""
-            stdout, stderr = self.ssh_manager.execute_command(ssh_client, check_cmd)
+            stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, check_cmd)
             self.logger.debug(f"File check command: {check_cmd}")
             self.logger.debug(f"File check output: {stdout}")
-            if not stdout or "no such item" in stdout.lower():
+            if not stdout or "no such item" in stdout.lower() or exit_status != 0:
                 self.logger.error("Backup file was not created on router")
                 return False, None
 
@@ -299,8 +348,8 @@ class BackupManager:
             # Remove the remote backup file
             if not keep_binary_backup:
                 rm_cmd = f"/file remove \"{remote_path}\""
-                stdout, stderr = self.ssh_manager.execute_command(ssh_client, rm_cmd)
-                if not stderr:
+                stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, rm_cmd)
+                if not stderr and exit_status == 0:
                     self.logger.info(f"Removed remote {os.path.basename(remote_path)}")
                 else:
                     self.logger.warning(f"Failed to remove remote backup file: {stderr}")
@@ -535,10 +584,10 @@ class BackupManager:
             self.logger.error(f"Failed to save info file: {str(e)}")
             return False
 
-def backup_parallel(targets: Dict[str, Any], config: Dict[str, Any],
+def backup_parallel(targets: Dict[str, TargetConfig], config: BackupConfig,
                    backup_password: str, backup_path: str,
                    max_workers: int = 5, dry_run: bool = False,
-                   progress_callback: Optional[Callable] = None) -> int:
+                   progress_callback: Optional[Callable[[str, int], None]] = None) -> int:
     """
     Perform parallel backup of multiple routers.
 
@@ -580,10 +629,10 @@ def backup_parallel(targets: Dict[str, Any], config: Dict[str, Any],
 
     return success_count
 
-def backup_router(target: Dict[str, Any], config: Dict[str, Any],
+def backup_router(target: TargetConfig, config: BackupConfig,
                  backup_password: str, backup_path: str,
                  dry_run: bool = False,
-                 progress_callback: Optional[Callable] = None) -> bool:
+                 progress_callback: Optional[Callable[[str, int], None]] = None) -> bool:
     """
     Perform backup of a single router.
 

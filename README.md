@@ -216,14 +216,10 @@ Backup Progress      100%|██████████████████
 ./rosbackup.py --dry-run
 ```
 ```
-01-05-2025 23:44:23 [INFO] [SYSTEM] Found 5 enabled target(s)
-01-05-2025 23:44:23 [INFO] [SYSTEM] Running parallel backup with 5 workers
-01-05-2025 23:44:23 [INFO] [HQ-ROUTER-01] [DRY RUN] Would backup target: HQ-ROUTER-01
-01-05-2025 23:44:23 [INFO] [BRANCH-ROUTER-14] [DRY RUN] Would backup target: BRANCH-ROUTER-14
-01-05-2025 23:44:23 [INFO] [SPACE-ROUTER-06] [DRY RUN] Would backup target: SPACE-ROUTER-06
-01-05-2025 23:44:23 [INFO] [CITY-ROUTER-32] [DRY RUN] Would backup target: CITY-ROUTER-32
-01-05-2025 23:44:23 [INFO] [EDGE-ROUTER-38] [DRY RUN] Would backup target: EDGE-ROUTER-38
-01-05-2025 23:44:23 [INFO] [SYSTEM] Backup completed. Success: 5, Failed: 0 [0m 0s]
+01-06-2025 02:45:19 [INFO] [SYSTEM] Found 5 enabled target(s)
+01-06-2025 02:45:19 [INFO] [SYSTEM] Running parallel backup with 5 workers
+01-06-2025 02:45:19 [INFO] [SYSTEM] Backup completed: 5 succeeded, 0 failed
+01-06-2025 02:45:19 [INFO] [SYSTEM] Backup completed. Success: 5, Failed: 0 [0m 0s]
 ```
 
 ### Specific Target Only

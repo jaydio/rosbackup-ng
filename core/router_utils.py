@@ -131,35 +131,35 @@ class RouterInfoManager:
         """
         try:
             # Get system identity
-            stdout, stderr = self.ssh_manager.execute_command(ssh_client, "/system identity print")
+            stdout, stderr, _ = self.ssh_manager.execute_command(ssh_client, "/system identity print")
             if stderr:
                 self.logger.error(f"Error getting system identity: {stderr}")
                 raise RuntimeError(f"Failed to get system identity: {stderr}")
             identity_info = self._parse_mikrotik_output(stdout)
 
             # Get system resource info
-            stdout, stderr = self.ssh_manager.execute_command(ssh_client, "/system resource print")
+            stdout, stderr, _ = self.ssh_manager.execute_command(ssh_client, "/system resource print")
             if stderr:
                 self.logger.error(f"Error getting system resource info: {stderr}")
                 raise RuntimeError(f"Failed to get system resource info: {stderr}")
             resource_info = self._parse_mikrotik_output(stdout)
 
             # Get routerboard info
-            stdout, stderr = self.ssh_manager.execute_command(ssh_client, "/system routerboard print")
+            stdout, stderr, _ = self.ssh_manager.execute_command(ssh_client, "/system routerboard print")
             if stderr:
                 self.logger.error(f"Error getting routerboard info: {stderr}")
                 raise RuntimeError(f"Failed to get routerboard info: {stderr}")
             board_info = self._parse_mikrotik_output(stdout)
 
             # Get license info
-            stdout, stderr = self.ssh_manager.execute_command(ssh_client, "/system license print")
+            stdout, stderr, _ = self.ssh_manager.execute_command(ssh_client, "/system license print")
             if stderr:
                 self.logger.error(f"Error getting license info: {stderr}")
                 raise RuntimeError(f"Failed to get license info: {stderr}")
             license_info = self._parse_mikrotik_output(stdout)
 
             # Get clock info
-            stdout, stderr = self.ssh_manager.execute_command(ssh_client, "/system clock print")
+            stdout, stderr, _ = self.ssh_manager.execute_command(ssh_client, "/system clock print")
             if stderr:
                 self.logger.error(f"Error getting clock info: {stderr}")
                 raise RuntimeError(f"Failed to get clock info: {stderr}")
@@ -203,16 +203,12 @@ class RouterInfoManager:
 
             stats = {}
             for cmd, key in stats_commands:
-                try:
-                    stdout, stderr = self.ssh_manager.execute_command(ssh_client, f":put [:len [{cmd}]]")
-                    if stderr:
-                        self.logger.warning(f"Error getting {key}: {stderr}")
-                        stats[key] = "0"
-                    else:
-                        stats[key] = stdout.strip() or "0"
-                except Exception as e:
-                    self.logger.warning(f"Failed to get {key}: {str(e)}")
+                stdout, stderr, _ = self.ssh_manager.execute_command(ssh_client, f":put [:len [{cmd}]]")
+                if stderr:
+                    self.logger.warning(f"Error getting {key}: {stderr}")
                     stats[key] = "0"
+                else:
+                    stats[key] = stdout.strip() or "0"
 
             # Get model, default to CHR if undefined
             model = board_info.get('model', 'unknown')
