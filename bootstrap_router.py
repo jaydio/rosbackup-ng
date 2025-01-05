@@ -28,6 +28,7 @@ Optional Settings:
     -l FILE, --log-file FILE           Path to log file [default: no file logging]
     -n, --no-color                Disable colored output
     -d, --dry-run                Show what would be done without making changes
+    -f, --force                  Force user creation even if the user already exists
 
 Examples:
     # Basic usage with password authentication:
@@ -41,6 +42,11 @@ Examples:
         -b backupuser -g read \\
         -k ~/.ssh/backup_key.pub \\
         -p 2222 -l /var/log/bootstrap.log
+
+    # Force creation of backup user even if it exists:
+    python3 bootstrap_router.py -H 192.168.1.1 \\
+        -k ~/.ssh/backup_key.pub \\
+        -f
 
     # Interactive password prompt with backup credential display:
     python3 bootstrap_router.py -H 192.168.1.1 \\
@@ -176,6 +182,8 @@ def parse_arguments():
                        help="User group for the backup user. Default: 'full'")
     parser.add_argument("-s", "--show-backup-credentials", action="store_true",
                        help="Show the backup user credentials after setup")
+    parser.add_argument("-f", "--force", action="store_true",
+                       help="Force user creation even if the user already exists")
 
     # General options
     parser.add_argument("-l", "--log-file",
@@ -317,7 +325,7 @@ def get_router_identity(ssh_client, ip):
         logging.warning("Failed to retrieve router identity. Using 'Unknown'.")
         return "Unknown"
 
-def create_backup_user(ssh_client, username, password=None, group='full'):
+def create_backup_user(ssh_client, username, password=None, group='full', force=False):
     """Create a backup user on the RouterOS device.
 
     Args:
@@ -325,6 +333,7 @@ def create_backup_user(ssh_client, username, password=None, group='full'):
         username (str): Username to create
         password (str, optional): Password for the user. If not provided, a random one will be generated
         group (str): User group for the new user. Default is 'full'
+        force (bool): Force user creation even if the user already exists
 
     Returns:
         tuple: (success, password) where success is True if user was created successfully,
@@ -333,8 +342,17 @@ def create_backup_user(ssh_client, username, password=None, group='full'):
     # Check if user already exists
     stdin, stdout, stderr = ssh_client.exec_command(f'/user print where name="{username}"')
     if username in stdout.read().decode():
-        logging.warning(f"User '{username}' already exists on the router.")
-        return False, None
+        if force:
+            logging.warning(f"User '{username}' already exists, removing...")
+            stdin, stdout, stderr = ssh_client.exec_command(f'/user remove "{username}"')
+            error = stderr.read().decode().strip()
+            if error:
+                logging.error(f"Failed to remove existing user '{username}': {error}")
+                return False, None
+            logging.info(f"Existing user '{username}' removed successfully")
+        else:
+            logging.error(f"User '{username}' already exists. Use --force to overwrite.")
+            return False, None
 
     # Generate password if not provided
     if not password:
@@ -421,7 +439,7 @@ def main():
     logging.info(f"Attempting to create backup user on router '{router_identity}' at {args.host}")
 
     # Create the backup user
-    user_created, backup_password = create_backup_user(ssh_client, args.backup_user, args.backup_user_password, args.backup_user_group)
+    user_created, backup_password = create_backup_user(ssh_client, args.backup_user, args.backup_user_password, args.backup_user_group, args.force)
 
     if user_created:
         # Install public key for the backup user
