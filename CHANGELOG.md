@@ -4,6 +4,30 @@ All notable changes to rosbackup-ng.
 
 ## [Unreleased]
 
+## [0.1.6] - 2025-01-06
+
+### Added
+- Better type definitions in backup_utils.py:
+  * Added `BackupConfig` TypedDict for global configuration
+  * Added `TargetConfig` TypedDict with detailed field documentation
+- Improved error handling in backup operations:
+  * Added exit status checks for RouterOS commands
+  * Better error messages for failed operations
+
+### Changed
+- Shell completion improvements:
+  * Added progress bar option completion
+  * Removed short-form parameters in favor of long-form only
+- Documentation updates:
+  * Expanded notification channels in roadmap
+  * Added ramdisk backup feature to roadmap
+  * Updated sample config with clearer comments
+  * Updated README with cleaner dry-run output
+- Code cleanup:
+  * Improved logging output format
+  * Reduced duplicate log messages
+  * Better error handling in SSH operations
+
 ## [0.1.5] - 2025-01-06
 
 ### Added
