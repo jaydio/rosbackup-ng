@@ -141,49 +141,49 @@ def parse_arguments():
     """Parse command-line arguments with renamed parameters and default values."""
     parser = argparse.ArgumentParser(
         description="Configure RouterOS devices for automated backups",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=textwrap.dedent('''
+        epilog=textwrap.dedent("""
             Examples:
-              %(prog)s -H 192.168.1.1 -k ~/.ssh/backup.pub
-              %(prog)s -H router.local -u admin -p 2222 -k ./keys/backup.pub
+              bootstrap_router.py -H 192.168.1.1 -k ~/.ssh/backup.pub
+              bootstrap_router.py -H router.local -u admin -p 2222 -k ./keys/backup.pub
 
             Note: Strict host key checking is disabled by default for initial setup.
-            ''')
+            """),
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
 
     # Required arguments
-    parser.add_argument('-H', '--host', required=True,
-                       help='Hostname or IP address of the target RouterOS device')
-    parser.add_argument('-k', '--backup-user-public-key', required=True,
-                       help='Path to public key file to install for the backup user')
+    parser.add_argument("-H", "--host", required=True,
+                       help="Hostname or IP address of the target RouterOS device")
+    parser.add_argument("-k", "--backup-user-public-key", required=True,
+                       help="Path to public key file to install for the backup user")
 
     # SSH connection options
-    parser.add_argument('-u', '--ssh-user', default='admin',
-                       help='Existing SSH username with privileges. Default: admin')
-    parser.add_argument('-P', '--ssh-user-password',
-                       help='Password for the SSH user. If not provided, will prompt')
-    parser.add_argument('-i', '--ssh-user-private-key',
-                       help='Path to private key file for the SSH user')
-    parser.add_argument('-p', '--ssh-port', type=int, default=22,
-                       help='SSH port number. Default: 22')
+    parser.add_argument("-u", "--ssh-user", default="admin",
+                       help="Existing SSH username with privileges. Default: admin")
+    parser.add_argument("-P", "--ssh-user-password",
+                       help="Password for the SSH user. If not provided, will prompt")
+    parser.add_argument("-i", "--ssh-user-private-key",
+                       help="Path to private key file for the SSH user")
+    parser.add_argument("-p", "--ssh-port", type=int, default=22,
+                       help="SSH port number. Default: 22")
 
     # Backup user options
-    parser.add_argument('-b', '--backup-user', default='rosbackup',
-                       help='Username to create for backup operations. Default: rosbackup')
-    parser.add_argument('-B', '--backup-user-password',
-                       help='Password for the backup user (auto-generated if not set)')
-    parser.add_argument('-g', '--backup-user-group', default='full',
+    parser.add_argument("-b", "--backup-user", default="rosbackup",
+                       help="Username to create for backup operations. Default: rosbackup")
+    parser.add_argument("-B", "--backup-user-password",
+                       help="Password for the backup user (auto-generated if not set)")
+    parser.add_argument("-g", "--backup-user-group", default="full",
                        help="User group for the backup user. Default: 'full'")
+    parser.add_argument("-s", "--show-backup-credentials", action="store_true",
+                       help="Show the backup user credentials after setup")
 
-    # Other options
-    parser.add_argument('-s', '--show-backup-credentials', action='store_true',
-                       help='Show the backup user credentials after setup')
-    parser.add_argument('-l', '--log-file',
-                       help='Path to log file (disabled if not specified)')
-    parser.add_argument('-n', '--no-color', action='store_true',
-                       help='Disable colored output')
-    parser.add_argument('-d', '--dry-run', action='store_true',
-                       help='Show what would be done without making changes')
+    # General options
+    parser.add_argument("-l", "--log-file",
+                       help="Path to log file (disabled if not specified)")
+    parser.add_argument("-n", "--no-color", action="store_true",
+                       help="Disable colored output")
+    parser.add_argument("-d", "--dry-run", action="store_true",
+                       help="Show what would be done without making changes")
 
     args = parser.parse_args()
 

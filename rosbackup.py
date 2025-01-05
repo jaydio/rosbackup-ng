@@ -29,28 +29,24 @@ from core.time_utils import get_timezone, get_system_timezone, get_current_time
 
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Automated RouterOS backup utility",
-        formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-
-    parser.add_argument('-c', '--config-dir', default='./config',
-                       help='Directory containing configuration files')
-    parser.add_argument('-l', '--log-file',
-                       help='Override log file path')
-    parser.add_argument('-L', '--log-level', default='INFO',
-                       choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-                       help='Logging level')
-    parser.add_argument('-n', '--no-color', action='store_true',
-                       help='Disable colored output')
-    parser.add_argument('-d', '--dry-run', action='store_true',
-                       help='Simulate operations without making changes')
-    parser.add_argument('--no-parallel', action='store_true',
-                       help='Disable parallel execution')
-    parser.add_argument('--max-parallel', type=int,
-                       help='Override maximum parallel backups')
-    parser.add_argument('--target', type=str,
-                       help='Run backup on specific target only')
+    parser = argparse.ArgumentParser(description="Automated RouterOS backup utility")
+    parser.add_argument("-c", "--config-dir", default="config",
+                       help="Directory containing configuration files")
+    parser.add_argument("-l", "--log-file",
+                       help="Override log file path")
+    parser.add_argument("-L", "--log-level",
+                       choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+                       default="INFO", help="Logging level")
+    parser.add_argument("-n", "--no-color", action="store_true",
+                       help="Disable colored output")
+    parser.add_argument("-d", "--dry-run", action="store_true",
+                       help="Simulate operations without making changes")
+    parser.add_argument("-p", "--no-parallel", action="store_true",
+                       help="Disable parallel execution")
+    parser.add_argument("-m", "--max-parallel", type=int,
+                       help="Override maximum parallel backups")
+    parser.add_argument("-t", "--target",
+                       help="Run backup on specific target only")
 
     return parser.parse_args()
 
