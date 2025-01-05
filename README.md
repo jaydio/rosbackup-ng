@@ -29,13 +29,18 @@ A powerful and flexible backup solution for MikroTik RouterOS devices. This tool
 
 ## Documentation
 
-- [`doc/SETUP.md`](doc/SETUP.md) - Step-by-step guide for installing and configuring the backup utility and its dependencies
 - [`doc/BOOTSTRAP.md`](doc/BOOTSTRAP.md) - Instructions for preparing RouterOS devices for automated backups using the bootstrap utility
 - [`doc/COMMAND_REFERENCE.md`](doc/COMMAND_REFERENCE.md) - Complete reference of all command-line options for all scripts
 - [`doc/CONFIG_REFERENCE.md`](doc/CONFIG_REFERENCE.md) - Detailed reference of all configuration parameters in global.yaml and targets.yaml
 - [`doc/FILESYSTEM_STRUCTURE.md`](doc/FILESYSTEM_STRUCTURE.md) - Overview of the project's directory structure and organization
 - [`doc/BACKUP_STRUCTURE.md`](doc/BACKUP_STRUCTURE.md) - Details about backup file formats, naming conventions, and information files
 - [`doc/DESIGN_REFERENCE.md`](doc/DESIGN_REFERENCE.md) - Technical documentation about application architecture and development
+
+## Prerequisites
+
+- Python 3.13.1 or higher
+- RouterOS devices with SSH access enabled
+- SSH key pair for authentication
 
 ## Installation
 
@@ -62,59 +67,67 @@ A powerful and flexible backup solution for MikroTik RouterOS devices. This tool
    cp config/targets.yaml.sample config/targets.yaml
    ```
 
+5. Set up SSH keys (choose one option):
+   
+   a. Create symbolic links to existing keys:
+   ```bash
+   mkdir -p ssh-keys/{public,private}
+   ln -s ~/.ssh/id_rsa ssh-keys/private/id_rosbackup
+   ln -s ~/.ssh/id_rsa.pub ssh-keys/public/id_rosbackup.pub
+   ```
+
+   b. Generate new key pair:
+   ```bash
+   mkdir -p ssh-keys/{public,private}
+   ssh-keygen -t rsa -b 4096 -f ssh-keys/private/id_rosbackup -C "rosbackup"
+   ```
+
+6. Configure RouterOS devices for backup:
+   
+   Use `bootstrap_router.py` to bootstrap targets:
+   ```bash
+   # Basic usage - will prompt for SSH password
+   python3 bootstrap_router.py --host 192.168.88.1 --backup-user-public-key ssh-keys/public/id_rosbackup.pub
+   ```
+   
+   See [BOOTSTRAP.md](BOOTSTRAP.md) for detailed usage instructions.
+
 ## Configuration
 
 ### Global Configuration (global.yaml)
 
+Here's a minimal [config/global.yaml](config/global.yaml.sample) to get you started. Check out [doc/CONFIG_REFERENCE.md](doc/CONFIG_REFERENCE.md) for more details.
+
 ```yaml
-# Backup Settings
+# Global configuration for RouterOS Backup NG
+
+# Parent directory for storing backups (required)
 backup_path_parent: backups
-backup_retention_days: 90
+
+# Days to keep backups, -1 for infinite (optional, default: 90)
+#backup_retention_days: 90
+
+# Global backup password (optional)
 backup_password: your-global-backup-password
 
-# Timezone Settings
-timezone: Asia/Manila  # Optional: Comment out to use system timezone
-
-# SSH Settings
+# SSH settings
 ssh:
-  user: rosbackup
-  timeout: 5
-  auth_timeout: 5
-  known_hosts_file: null  # Optional: Path to known_hosts file
-  add_target_host_key: true
+  user: rosbackup            # Default SSH username (required)
+  #timeout: 5                 # Connection timeout (optional, default: 5)
+  #auth_timeout: 5            # Authentication timeout (optional, default: 5)
+  #known_hosts_file: null     # Known hosts file path (optional)
+  #add_target_host_key: true  # Auto-add target host keys (optional, default: true)
+
+  # SSH connection arguments
   args:
-    look_for_keys: false
-    allow_agent: false
-    compress: true
-    keepalive_interval: 60
-    keepalive_countmax: 3
-
-# Performance Settings
-parallel_execution: true
-max_parallel_backups: 5
-
-# Logging Settings
-log_file_enabled: true
-log_file: ./rosbackup.log
-log_level: INFO
-log_retention_days: 90
-
-# Notification Settings
-notifications_enabled: true
-notify_on_failed_backups: true
-notify_on_successful_backups: false
-
-# SMTP Settings
-smtp:
-  enabled: false
-  host: smtp.example.com
-  port: 587
-  username: notifications@example.com
-  password: your-smtp-password
-  from_email: notifications@example.com
+    auth_timeout: 10          # SSH auth timeout (optional, default: 5)
+    #keepalive_interval: 60   # Keepalive interval (optional, default: 60)
+    #keepalive_countmax: 3    # Max failed keepalives (optional, default: 3)
 ```
 
 ### Target Configuration (targets.yaml)
+
+Here's a minimal [config/targets.yaml](config/targets.yaml.sample) to get you started. Check out [doc/CONFIG_REFERENCE.md](doc/CONFIG_REFERENCE.md) for more details.
 
 #### Basic Target
 ```yaml
@@ -279,6 +292,21 @@ The tool implements comprehensive error handling for:
 - File transfer problems
 - Storage space issues
 - Network connectivity problems
+
+## Command Completion
+
+For easier command-line usage, enable command completion for your current shell session:
+
+```bash
+source scripts/rosbackup-ng-completion.bash
+```
+
+This provides:
+- Auto-completion for all command-line options
+- File path completion for relevant options
+- Target name completion from targets.yaml
+
+The completion script supports both `rosbackup.py` and `bootstrap_router.py` commands.
 
 ## Logging
 
