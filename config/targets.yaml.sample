@@ -2,9 +2,14 @@ targets:
   - name: MYR1
     enabled: true
     host: 192.168.88.1
-    ssh_port: 22
-    ssh_user: rosbackup
-    private_key: ./ssh-keys/private/id_rosbackup
+    ssh:
+      port: 22
+      user: rosbackup
+      private_key: ./ssh-keys/private/id_rosbackup
+      args:
+        auth_timeout: 5
+        channel_timeout: 5
+        compress: true
     backup_password: SpecificPassword
     backup_retention_days: -1
     encrypted: false

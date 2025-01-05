@@ -194,6 +194,57 @@ backups/
 
 The tool uses two YAML configuration files: `global.yaml` for general settings and `targets.yaml` for router-specific configurations.
 
+### SSH Configuration
+
+SSH settings can be configured both globally and per-target. The configuration follows a consistent structure in both files:
+
+```yaml
+# In global.yaml
+ssh:
+  user: rosbackup               # Default SSH username
+  timeout: 5                    # Connection timeout in seconds
+  auth_timeout: 5              # Authentication timeout in seconds
+  known_hosts_file: null       # Optional: Path to known_hosts file
+  add_target_host_key: true    # Whether to automatically add target host keys
+  args:
+    look_for_keys: false       # Whether to look for SSH keys in ~/.ssh/
+    allow_agent: false         # Whether to use SSH agent
+    compress: true             # Enable compression for slower connections
+    auth_timeout: 5            # Authentication timeout in seconds
+    channel_timeout: 5         # Channel timeout in seconds
+    disabled_algorithms:       # Dict of algorithms to disable
+      pubkeys: ["rsa-sha1"]   # Disable specific algorithms
+    keepalive_interval: 60     # Send keepalive every minute
+    keepalive_countmax: 3      # Disconnect after 3 failed keepalives
+
+# In targets.yaml
+targets:
+  - name: HQ-ROUTER-01
+    host: 192.168.88.1
+    ssh:
+      port: 22                 # SSH port number
+      user: rosbackup          # Override global SSH username
+      private_key: ./ssh-keys/private/id_rosbackup  # SSH private key path
+      args:
+        auth_timeout: 5        # Override global SSH arguments
+        channel_timeout: 5
+        compress: true
+```
+
+Target-specific SSH settings override global settings. The `args` section in both files accepts any valid Paramiko SSH client arguments.
+
+### Configuration Inheritance
+
+1. Global settings provide defaults for all targets
+2. Target-specific settings override global settings
+3. SSH arguments are merged, with target-specific args taking precedence
+4. Common SSH arguments include:
+   - `auth_timeout`: Authentication timeout in seconds
+   - `channel_timeout`: Channel timeout in seconds
+   - `compress`: Enable compression for slower connections
+   - `keepalive_interval`: Interval between keepalive packets
+   - `disabled_algorithms`: Dict of algorithms to disable
+
 ### Example Global Configuration
 
 ```yaml

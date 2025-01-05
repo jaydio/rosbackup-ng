@@ -5,11 +5,24 @@ All notable changes to rosbackup-ng.
 ## [Unreleased]
 
 ### Added
-- New CLI options for controlling parallel execution (--no-parallel, --max-parallel)
-- Added --target option to run backup on specific target only
+- New CLI options for controlling parallel execution (`--no-parallel`, `--max-parallel`)
+- Added ```--target``` option to run backup on specific target only
+- Progress bar support with `-b` flag showing overall backup progress
+- Improved logging with cleaner output and reduced duplication
+- Support for keeping both binary and plaintext backups on routers
 
 ### Changed
 - Enhanced target filtering and validation in CLI
+- Improved SSH configuration structure in targets.yaml to match global.yaml
+- Made SSH configuration more consistent between global and target settings
+- Unified SSH argument handling for better inheritance and overrides
+- Suppressed log messages when using progress bar mode
+- Updated logging format for better readability
+- Improved error handling in backup operations
+
+### Fixed
+- SSH configuration inheritance when using target-specific settings
+- Proper merging of SSH arguments from global and target configs
 
 ## [0.1.4] - 2025-01-05
 

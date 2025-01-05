@@ -16,9 +16,19 @@ from pathlib import Path
 from typing import Dict, List, Optional, TypedDict, Any
 
 import yaml
+from tqdm import tqdm
 from zoneinfo import ZoneInfo
 from tzlocal import get_localzone
 
+from core import (
+    BackupManager,
+    SSHManager,
+    RouterInfoManager,
+    NotificationManager,
+    LogManager,
+    ColoredFormatter,
+    ShellPbarHandler
+)
 from core.backup_utils import BackupManager
 from core.logging_utils import LogManager
 from core.notification_utils import NotificationManager
@@ -82,23 +92,31 @@ class TargetConfig(TypedDict):
     Attributes:
         name: Target name
         host: Hostname or IP address
-        port: SSH port
-        ssh_user: SSH username
-        private_key: Path to SSH private key
+        enabled: Whether this target is enabled
+        ssh: SSH configuration dictionary containing:
+            - port: SSH port number
+            - user: SSH username
+            - private_key: Path to SSH private key
+            - args: Additional SSH arguments
         encrypted: Enable backup encryption
+        enable_binary_backup: Enable binary backup creation
+        enable_plaintext_backup: Enable plaintext backup creation
         keep_binary_backup: Keep binary backup on target
         keep_plaintext_backup: Keep plaintext backup on target
         backup_password: Target-specific backup password
+        backup_retention_days: Target-specific retention period
     """
     name: str
     host: str
-    port: int
-    ssh_user: str
-    private_key: str
+    enabled: bool
+    ssh: Dict[str, Any]
     encrypted: bool
+    enable_binary_backup: bool
+    enable_plaintext_backup: bool
     keep_binary_backup: bool
     keep_plaintext_backup: bool
     backup_password: Optional[str]
+    backup_retention_days: Optional[int]
 
 
 def get_timestamp(tz: Optional[ZoneInfo] = None) -> str:
@@ -230,6 +248,7 @@ def backup_target(
 
         # Perform plaintext backup if enabled
         plaintext_success = True
+        plaintext_file = None
         if target.get('enable_plaintext_backup', True):
             plaintext_success, plaintext_file = backup_manager.perform_plaintext_backup(
                 ssh_client=ssh_client,
@@ -245,7 +264,6 @@ def backup_target(
 
         # Both backups succeeded
         if binary_success and plaintext_success:
-            logger.info("Backup completed successfully")
             if notifier.enabled and notifier.notify_on_success:
                 notifier.send_success_notification(target_name)
             return True
@@ -297,13 +315,12 @@ def main() -> None:
 
     # Set up logging with correct timezone
     log_manager = LogManager()
-    log_manager.setup(
-        log_level=args.log_level,
-        log_file=args.log_file,
-        use_colors=not args.no_color
-    )
-    logger = log_manager.system
-        
+    if args.progress_bar:
+        log_manager.setup(log_level='ERROR')
+    else:
+        log_manager.setup(log_level=args.log_level, log_file=args.log_file)
+    logger = log_manager.get_logger('SYSTEM')
+
     # Convert to GlobalConfig TypedDict
     global_config: GlobalConfig = {
         'backup_path': global_config_data.get('backup_path_parent', 'backups'),
@@ -363,119 +380,137 @@ def main() -> None:
     # Load SSH configuration
     ssh_config = global_config['ssh']
     ssh_args = {
-        'timeout': ssh_config.get('timeout', 30),
-        'auth_timeout': ssh_config.get('auth_timeout', 30),
-        'banner_timeout': ssh_config.get('banner_timeout', 60),
-        'transport_factory': ssh_config.get('transport_factory', None),
-        'user': ssh_config.get('user', 'rosbackup'),  # Add global SSH user to ssh_args
-        'private_key': ssh_config.get('private_key')  # Add global private key path
+        'look_for_keys': ssh_config.get('args', {}).get('look_for_keys', False),
+        'allow_agent': ssh_config.get('args', {}).get('allow_agent', False),
+        'compress': ssh_config.get('args', {}).get('compress', True),
+        'auth_timeout': ssh_config.get('args', {}).get('auth_timeout', 5),
+        'channel_timeout': ssh_config.get('args', {}).get('channel_timeout', 5),
+        'disabled_algorithms': ssh_config.get('args', {}).get('disabled_algorithms', {}),
+        'keepalive_interval': ssh_config.get('args', {}).get('keepalive_interval', 60),
+        'keepalive_countmax': ssh_config.get('args', {}).get('keepalive_countmax', 3),
+        'timeout': ssh_config.get('timeout', 5),
+        'known_hosts_file': ssh_config.get('known_hosts_file'),
+        'add_target_host_key': ssh_config.get('add_target_host_key', True),
+        'user': ssh_config.get('user', 'rosbackup'),
+        'private_key': ssh_config.get('private_key')
     }
 
     # Load target configurations
     targets_file = Path(args.config_dir) / 'targets.yaml'
     if not targets_file.exists():
-        logger.error(f"Target configuration file not found: {targets_file}")
+        logger.error(f"Targets configuration file not found: {targets_file}")
         sys.exit(1)
 
     with open(targets_file) as f:
-        targets_data = yaml.safe_load(f)
+        targets_data = yaml.safe_load(f).get('targets', [])
 
-    if not targets_data or 'targets' not in targets_data:
-        logger.error("No targets defined in configuration")
-        sys.exit(1)
-
-    targets_data = targets_data['targets']
-
-    # Filter targets if specified
-    if args.target:
-        targets_data = [t for t in targets_data if t.get('name') == args.target]
-        if not targets_data:
-            logger.error(f"Target '{args.target}' not found in configuration")
-            sys.exit(1)
-
-    # Filter disabled targets
-    targets_data = [t for t in targets_data if t.get('enabled', True)]
     if not targets_data:
-        logger.error("No enabled targets found")
+        logger.error("No targets found in configuration")
         sys.exit(1)
 
-    # Log target count only if not using progress bar
-    if not (global_config['parallel_backups'] and not args.no_parallel and args.progress_bar):
+    # Filter targets if --target is specified
+    if args.target:
+        targets_data = [t for t in targets_data if t.get('name') == args.target or t.get('host') == args.target]
+        if not targets_data:
+            logger.error(f"Target not found: {args.target}")
+            sys.exit(1)
+        if not args.progress_bar:
+            logger.info(f"Running backup for target: {args.target}")
+
+    # Filter enabled targets
+    targets_data = [t for t in targets_data if t.get('enabled', True)]
+    if not args.progress_bar:
         logger.info(f"Found {len(targets_data)} enabled target(s)")
 
-    # Execute backups
-    parallel_backups = global_config.get('parallel_backups', False)
-    max_parallel = global_config.get('max_parallel', 4)
-
-    # Determine execution mode
-    use_parallel = global_config['parallel_backups'] and not args.no_parallel
-    max_workers = min(global_config['max_parallel'], len(targets_data)) if use_parallel else 1
-
-    pbar_handler = None
-    if use_parallel and args.progress_bar:
-        # Suppress all output below WARNING when using progress bar
-        log_manager.set_log_level(logging.WARNING)
-        log_manager.disable_console()
-        
-        # Only show initial dry-run warning if needed
-        if args.dry_run:
-            logger.warning("Running in dry-run mode - no changes will be made")
-            
-        # Create progress bar with total number of targets
-        pbar_handler = ShellPbarHandler(
+    # Initialize progress bar if requested
+    if args.progress_bar:
+        pbar = ShellPbarHandler(
             total=len(targets_data),
-            desc="Overall Progress",
-            bar_format='{desc:<20} {percentage:3.0f}%|{bar:20}| {n_fmt}/{total_fmt} targets [{elapsed}<{remaining}]'
+            desc="Backup Progress",
+            position=0,
+            leave=True,
+            ncols=80,
+            bar_format='{desc:<20} {percentage:3.0f}%|{bar:40}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
         )
+    else:
+        pbar = None
 
-    successful_backups = 0
-    failed_backups = 0
+    # Execute backups
+    success_count = 0
+    failure_count = 0
 
-    try:
-        # Perform backups
-        if use_parallel:
-            success_count = 0
+    if global_config['parallel_backups'] and len(targets_data) > 1:
+        max_workers = min(global_config['max_parallel'], len(targets_data))
+        if not args.progress_bar:
+            logger.info(f"Running parallel backup with {max_workers} workers")
+
+        try:
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = []
                 for target in targets_data:
+                    # Merge target-specific SSH configuration
+                    target_ssh = target.get('ssh', {})
+                    target_ssh_args = target_ssh.get('args', {})
+                    target_ssh_args.update({
+                        'port': target_ssh.get('port', 22),
+                        'username': target_ssh.get('user', ssh_args.get('user', 'rosbackup')),
+                        'private_key': target_ssh.get('private_key', ssh_args.get('private_key'))
+                    })
+                    
+                    # Create a copy of global SSH args and update with target-specific args
+                    target_args = ssh_args.copy()
+                    target_args.update(target_ssh_args)
+
                     future = executor.submit(
                         backup_target,
                         target=target,
-                        ssh_args=ssh_args,
+                        ssh_args=target_args,
                         backup_password=global_config['backup_password'],
                         notifier=notifier,
                         backup_path=backup_path,
                         dry_run=args.dry_run,
-                        config=global_config,
-                        progress_callback=None  # Remove per-router progress callback
+                        config=global_config
                     )
-                    futures.append((target.get('name', target.get('host', 'Unknown')), future))
+                    futures.append(future)
 
-                # Track progress
-                for target_name, future in futures:
+                for future in concurrent.futures.as_completed(futures):
                     try:
-                        success = future.result()
-                        if success:
-                            successful_backups += 1
-                            if pbar_handler:
-                                pbar_handler.update(1, desc=f"Success: {successful_backups}/{len(targets_data)}")
-                        else:
-                            failed_backups += 1
-                            if pbar_handler:
-                                pbar_handler.update(1, desc=f"Success: {successful_backups}/{len(targets_data)}")
+                        if future.result():
+                            success_count += 1
+                        if pbar:
+                            pbar.update(1)
                     except Exception as e:
-                        failed_backups += 1
-                        logger.error(f"Backup failed for {target_name}: {str(e)}")
-                        if pbar_handler:
-                            pbar_handler.update(1, desc=f"Success: {successful_backups}/{len(targets_data)}")
-        else:
-            # Sequential execution
+                        logger.error(f"Backup failed: {str(e)}")
+                        failure_count += 1
+                        if pbar:
+                            pbar.update(1)
+        finally:
+            if pbar:
+                pbar.close()
+    else:
+        if not args.progress_bar and len(targets_data) > 1:
+            logger.info("Running sequential backup")
+
+        try:
             for target in targets_data:
                 target_name = target.get('name', target.get('host', 'Unknown'))
                 try:
+                    # Merge target-specific SSH configuration
+                    target_ssh = target.get('ssh', {})
+                    target_ssh_args = target_ssh.get('args', {})
+                    target_ssh_args.update({
+                        'port': target_ssh.get('port', 22),
+                        'username': target_ssh.get('user', ssh_args.get('user', 'rosbackup')),
+                        'private_key': target_ssh.get('private_key', ssh_args.get('private_key'))
+                    })
+                    
+                    # Create a copy of global SSH args and update with target-specific args
+                    target_args = ssh_args.copy()
+                    target_args.update(target_ssh_args)
+
                     success = backup_target(
                         target=target,
-                        ssh_args=ssh_args,
+                        ssh_args=target_args,
                         backup_password=global_config['backup_password'],
                         notifier=notifier,
                         backup_path=backup_path,
@@ -483,29 +518,26 @@ def main() -> None:
                         config=global_config
                     )
                     if success:
-                        successful_backups += 1
+                        success_count += 1
                     else:
-                        failed_backups += 1
+                        failure_count += 1
+                    if pbar:
+                        pbar.update(1)
                 except Exception as e:
-                    failed_backups += 1
                     logger.error(f"Backup failed for {target_name}: {str(e)}")
-
-    except KeyboardInterrupt:
-        logger.warning("Backup process interrupted by user")
-        sys.exit(1)
-    except Exception as e:
-        logger.error(f"Backup process failed: {str(e)}")
-        sys.exit(1)
-    finally:
-        if pbar_handler:
-            pbar_handler.close()
+                    failure_count += 1
+                    if pbar:
+                        pbar.update(1)
+        finally:
+            if pbar:
+                pbar.close()
 
     # Log final status
     duration = datetime.now() - start_time
     duration_str = f"{duration.seconds//60}m {duration.seconds%60}s"
-    logger.info(f"Backup completed. Success: {successful_backups}, Failed: {failed_backups} [{duration_str}]")
+    logger.info(f"Backup completed. Success: {success_count}, Failed: {failure_count} [{duration_str}]")
 
-    if failed_backups > 0:
+    if failure_count > 0:
         sys.exit(1)
 
 

@@ -285,13 +285,13 @@ class BackupManager:
                 self.logger.error("Backup file was not created on router")
                 return False, None
 
-            self.logger.info(f"Binary backup file {remote_path} exists on the router.")
+            self.logger.info(f"Binary backup file {os.path.basename(remote_path)} exists on the router.")
 
             # Download the backup file
             try:
                 with SCPClient(ssh_client.get_transport()) as scp:
                     scp.get(remote_path, str(local_path))
-                self.logger.info(f"Downloaded {remote_path}")
+                self.logger.info(f"Downloaded {os.path.basename(remote_path)}")
             except Exception as e:
                 self.logger.error(f"Failed to download backup file: {str(e)}")
                 return False, None
@@ -301,7 +301,7 @@ class BackupManager:
                 rm_cmd = f"/file remove \"{remote_path}\""
                 stdout, stderr = self.ssh_manager.execute_command(ssh_client, rm_cmd)
                 if not stderr:
-                    self.logger.info(f"Removed remote {remote_path}")
+                    self.logger.info(f"Removed remote {os.path.basename(remote_path)}")
                 else:
                     self.logger.warning(f"Failed to remove remote backup file: {stderr}")
 
@@ -382,15 +382,13 @@ class BackupManager:
             # Generate backup file name
             backup_name = self._generate_backup_name(router_info, timestamp, 'rsc')
             backup_path = backup_dir / backup_name
-            backup_path.write_text(stdout)
-            self.logger.info(f"Plaintext backup saved as {backup_name}")
 
-            # Optionally save the export on the router
+            # Save the export on the router first if requested
             if keep_plaintext_backup:
                 try:
-                    # Save the export to a file on the router
                     save_command = f'/export terse show-sensitive file={backup_name}'
-                    stdin, stdout, stderr = ssh_client.exec_command(save_command)
+                    stdin, stdout2, stderr = ssh_client.exec_command(save_command)
+                    stdout2 = stdout2.read().decode()
                     stderr = stderr.read().decode()
                     if stderr:
                         self.logger.error(f"Failed to save export on router: {stderr.strip()}")
@@ -399,12 +397,15 @@ class BackupManager:
                 except Exception as e:
                     self.logger.error(f"Error saving export on router: {str(e)}")
                     return False, None
-            else:
-                self.logger.debug("Not keeping plaintext export on router")
+
+            # Save local backup
+            backup_path.write_text(stdout)
+            self.logger.info(f"Plaintext backup saved as {backup_name}")
 
             return True, backup_path
+
         except Exception as e:
-            self.logger.error(f"Error during plaintext backup: {str(e)}")
+            self.logger.error(f"Plaintext backup failed: {str(e)}")
             return False, None
 
     def save_info_file(
