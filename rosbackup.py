@@ -554,7 +554,7 @@ def main() -> None:
             for target in failed_targets:
                 print(f"  - {target}")
     else:
-        logger.info(f"Backup completed: {success_count} succeeded, {failure_count} failed")
+        pass
 
     # Log final status
     duration = datetime.now() - start_time
