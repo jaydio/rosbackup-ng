@@ -11,11 +11,12 @@ from typing import Dict, Optional, Tuple, TypedDict, Any, Callable
 import logging
 import os
 import re
+from scp import SCPClient
+import time
 from .ssh_utils import SSHManager
 from .router_utils import RouterInfoManager
 from .logging_utils import LogManager
 import concurrent.futures
-from tqdm import tqdm
 
 class RouterInfo(TypedDict):
     """
@@ -256,6 +257,29 @@ class BackupManager:
         router_name = f"{router_info['identity']}_{ros_version}_{router_info['architecture_name']}"
         return f"{router_name}_{timestamp}.{extension}"
 
+    def download_backup(self, target: str, backup_file: str) -> bool:
+        """Download backup file from router."""
+        try:
+            self.status_handler.update(target, "Downloading")
+            
+            # Download the file
+            with SCPClient(self.client.get_transport()) as scp:
+                remote_size = scp.stat(backup_file).st_size
+                scp.get(backup_file, self.local_path)
+                
+            # Update status with size information
+            if isinstance(self.status_handler, ComposeStyleHandler):
+                self.status_handler.update(target, "Finished", remote_size)
+            else:
+                self.status_handler.update(target, "Finished")
+                
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to download backup from {target}: {e}")
+            self.status_handler.update(target, "Failed")
+            return False
+
     def perform_binary_backup(
         self,
         ssh_client: paramiko.SSHClient,
@@ -265,8 +289,7 @@ class BackupManager:
         backup_dir: Path,
         timestamp: str,
         keep_binary_backup: bool,
-        dry_run: bool = False,
-        compose_handler: Optional['ComposeStyleHandler'] = None
+        dry_run: bool = False
     ) -> Tuple[bool, Optional[Path]]:
         """
         Perform binary backup of RouterOS device.
@@ -283,7 +306,6 @@ class BackupManager:
             timestamp: Timestamp string (format: MMDDYYYY-HHMMSS)
             keep_binary_backup: Whether to keep backup file on router
             dry_run: If True, only simulate the backup
-            compose_handler: Optional compose style output handler
 
         Returns:
             A tuple containing:
@@ -343,22 +365,10 @@ class BackupManager:
 
             # Download the backup file
             try:
-                sftp = ssh_client.open_sftp()
-                # Get file size
-                size = sftp.stat(remote_path).st_size
-                
-                # Download with progress tracking
-                with tqdm(total=size, unit='B', unit_scale=True, 
-                         disable=compose_handler is not None) as pbar:
-                    def callback(bytes_transferred, _):
-                        pbar.update(bytes_transferred - pbar.n)
-                        if compose_handler:
-                            progress = bytes_transferred / size
-                            compose_handler.update("Downloading", 
-                                                progress=progress)
-                    
-                    sftp.get(remote_path, str(local_path), callback=callback)
-                self.logger.info(f"Downloaded {os.path.basename(remote_path)}")
+                with SCPClient(ssh_client.get_transport()) as scp:
+                    remote_size = scp.stat(remote_path).st_size
+                    scp.get(remote_path, str(local_path))
+                self.logger.info(f"Downloaded {os.path.basename(remote_path)} ({remote_size} bytes)")
             except Exception as e:
                 self.logger.error(f"Failed to download backup file: {str(e)}")
                 return False, None
@@ -377,16 +387,10 @@ class BackupManager:
                 self.logger.error("Local backup file is missing or empty")
                 return False, None
 
-            if compose_handler:
-                compose_handler.update("Finished", 
-                                    backup_size=os.path.getsize(local_path))
-            
             return True, local_path
 
         except Exception as e:
             self.logger.error(f"Binary backup failed: {str(e)}")
-            if compose_handler:
-                compose_handler.update("Failed")
             return False, None
 
     def perform_plaintext_backup(
@@ -396,8 +400,7 @@ class BackupManager:
         backup_dir: Path,
         timestamp: str,
         keep_plaintext_backup: bool = False,
-        dry_run: bool = False,
-        compose_handler: Optional['ComposeStyleHandler'] = None
+        dry_run: bool = False
     ) -> Tuple[bool, Optional[Path]]:
         """
         Perform plaintext (export) backup of RouterOS device.
@@ -416,7 +419,6 @@ class BackupManager:
             timestamp: Timestamp string (format: MMDDYYYY-HHMMSS)
             keep_plaintext_backup: Whether to keep export on router
             dry_run: If True, only simulate the backup
-            compose_handler: Optional compose style output handler
 
         Returns:
             A tuple containing:
@@ -477,16 +479,10 @@ class BackupManager:
             backup_path.write_text(stdout)
             self.logger.info(f"Plaintext backup saved as {backup_name}")
 
-            if compose_handler:
-                compose_handler.update("Finished", 
-                                    backup_size=os.path.getsize(backup_path))
-            
             return True, backup_path
 
         except Exception as e:
             self.logger.error(f"Plaintext backup failed: {str(e)}")
-            if compose_handler:
-                compose_handler.update("Failed")
             return False, None
 
     def save_info_file(

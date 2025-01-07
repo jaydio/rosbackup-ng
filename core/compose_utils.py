@@ -9,26 +9,10 @@ import time
 import threading
 from datetime import datetime
 from typing import Dict, List, Optional
-from colorama import Fore, Style, Back
+from colorama import Fore, Style
 
 class ComposeStyleHandler:
     """Handler for Docker Compose style output."""
-    
-    # Status colors
-    STATUS_COLORS = {
-        "Waiting": Fore.YELLOW,
-        "Starting": Fore.CYAN,
-        "Running": Fore.BLUE,
-        "Downloading": Fore.MAGENTA,
-        "Finished": Fore.GREEN,
-        "Failed": Fore.RED
-    }
-    
-    # Progress bar characters
-    PROGRESS_CHARS = {
-        'full': '▓',
-        'empty': '░'
-    }
     
     def __init__(self, targets: List[str], position: int = 0):
         """
@@ -43,10 +27,9 @@ class ComposeStyleHandler:
         self.total_targets = len(targets)
         self.process_start_time = time.time()
         self.start_times: Dict[str, float] = {}
-        self.end_times: Dict[str, float] = {}
+        self.end_times: Dict[str, float] = {}  # Track when targets finish
         self.status: Dict[str, str] = {}
-        self.backup_sizes: Dict[str, int] = {}  # Store backup sizes in bytes
-        self.download_progress: Dict[str, float] = {}  # Store download progress (0-1)
+        self.sizes: Dict[str, int] = {}  # Track backup sizes in bytes
         self.completed = 0
         self.failed = 0
         self.last_update = time.time()
@@ -62,32 +45,12 @@ class ComposeStyleHandler:
             self.status[target] = "Waiting"
             self.start_times[target] = 0
             self.end_times[target] = 0
-            self.backup_sizes[target] = 0
-            self.download_progress[target] = 0
+            self.sizes[target] = 0
             
         # Clear screen and print initial header
         print("\033[2J\033[H", end="")  # Clear screen and move cursor to top
         self._start_ticker()
         
-    def _format_size(self, size_bytes: int) -> str:
-        """Format size in bytes to human readable format."""
-        if size_bytes == 0:
-            return "0B"
-        units = ['B', 'KB', 'MB', 'GB']
-        unit_idx = 0
-        size = float(size_bytes)
-        while size >= 1024 and unit_idx < len(units) - 1:
-            size /= 1024
-            unit_idx += 1
-        return f"{size:.1f}{units[unit_idx]}"
-        
-    def _get_progress_bar(self, progress: float, width: int = 8) -> str:
-        """Generate a progress bar string."""
-        filled = int(width * progress)
-        empty = width - filled
-        return (self.PROGRESS_CHARS['full'] * filled +
-                self.PROGRESS_CHARS['empty'] * empty)
-            
     def _start_ticker(self):
         """Start the ticker thread for screen updates."""
         def ticker():
@@ -107,59 +70,71 @@ class ComposeStyleHandler:
         sys.stdout.write("\033[H")
         
         # Print header
-        print(f"{Style.BRIGHT}[+] Executing backup for {self.total_targets} targets ...{Style.NORMAL}\n")
+        print(f"{Fore.WHITE}[+] Executing backup for {self.total_targets} targets ...\n{Style.RESET_ALL}")
         
         # Print each target
         for target in self.targets:
             status = self.status[target]
             elapsed = self._get_elapsed_time(target)
+            size_info = self._format_size(self.sizes[target]) if self.sizes[target] > 0 else ""
             
-            # Get status color
-            color = self.STATUS_COLORS.get(status, '')
-            
-            # Determine symbol
+            # Determine status color and symbol
             if status == "Failed":
+                color = Fore.RED
                 symbol = "✘"
+                status_color = Fore.RED
                 status = "FAILED"
             elif status == "Finished":
+                color = Fore.GREEN
                 symbol = "✔"
-            else:
+                status_color = Fore.GREEN
+            elif status == "Waiting":
+                color = Fore.YELLOW
                 symbol = self.spinner_frames[self.spinner_idx]
-                
-            # Build progress/size information
-            info = ""
-            if status == "Downloading":
-                progress = self.download_progress[target]
-                info = f"[{self._get_progress_bar(progress)}] {progress*100:.0f}%"
-            elif status == "Finished":
-                size = self._format_size(self.backup_sizes[target])
-                info = f"[{size}]"
-            elif status == "Failed":
-                info = "[ERROR]"
+                status_color = Fore.YELLOW
+            elif status == "Starting":
+                color = Fore.CYAN
+                symbol = self.spinner_frames[self.spinner_idx]
+                status_color = Fore.CYAN
+            elif status == "Downloading":
+                color = Fore.MAGENTA
+                symbol = self.spinner_frames[self.spinner_idx]
+                status_color = Fore.MAGENTA
+            else:  # Running
+                color = Fore.BLUE
+                symbol = self.spinner_frames[self.spinner_idx]
+                status_color = Fore.BLUE
                 
             # Format the line with proper spacing and colors
-            line = (f"    {color}{symbol}{Style.RESET_ALL} "
-                   f"{target:<20} "
-                   f"{color}{status:<12}{Style.RESET_ALL} "
-                   f"{info:<15} "
-                   f"{elapsed:>8}")
+            size_part = f" [{size_info}]" if size_info else ""
+            line = f"    {color}{symbol}{Fore.WHITE} {target:<20} {status_color}{status:<15}{Fore.WHITE}{size_part} {elapsed:>10}{Style.RESET_ALL}"
             print(line)
             
-        # Print summary statistics
-        if self.done:
+        # Print summary statistics if done or if we have any completed/failed targets
+        if self.done or self.completed > 0 or self.failed > 0:
             total_elapsed = time.time() - self.process_start_time
-            total_size = sum(self.backup_sizes.values())
-            success_count = sum(1 for s in self.status.values() if s == "Finished")
-            failed_count = sum(1 for s in self.status.values() if s == "Failed")
-            waiting_count = self.total_targets - success_count - failed_count
+            in_progress = self.total_targets - (self.completed + self.failed)
             
-            print(f"\n    {Style.BRIGHT}Summary:{Style.NORMAL}")
-            print(f"    Total Time: {total_elapsed:.1f}s")
-            print(f"    Total Size: {self._format_size(total_size)}")
-            print(f"    Status: {Fore.GREEN}{success_count} Success{Style.RESET_ALL} | "
-                  f"{Fore.RED}{failed_count} Failed{Style.RESET_ALL} | "
-                  f"{Fore.YELLOW}{waiting_count} Waiting{Style.RESET_ALL}")
+            print(f"\n    {Fore.WHITE}Summary:{Style.RESET_ALL}")
+            print(f"    {Fore.WHITE}Total: {self.total_targets} | "
+                  f"{Fore.GREEN}Success: {self.completed} | "
+                  f"{Fore.RED}Failed: {self.failed} | "
+                  f"{Fore.BLUE}In Progress: {in_progress}{Style.RESET_ALL}")
+            
+            if self.completed > 0:
+                total_size = sum(self.sizes.values())
+                print(f"    {Fore.WHITE}Total Size: {self._format_size(total_size)}{Style.RESET_ALL}")
+            
+            print(f"    {Fore.WHITE}Time Elapsed: {total_elapsed:.1f}s{Style.RESET_ALL}")
                 
+    def _format_size(self, size_bytes: int) -> str:
+        """Format size in bytes to human readable format."""
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if size_bytes < 1024:
+                return f"{size_bytes:.1f}{unit}"
+            size_bytes /= 1024
+        return f"{size_bytes:.1f}TB"
+            
     def _get_elapsed_time(self, target: str) -> str:
         """Get elapsed time for a target."""
         if self.start_times[target] == 0:
@@ -172,15 +147,14 @@ class ComposeStyleHandler:
             elapsed = time.time() - self.start_times[target]
         return f"{elapsed:.1f}s"
             
-    def update(self, target: str, status: str, backup_size: int = 0, progress: float = 0):
+    def update(self, target: str, status: str, size: int = 0):
         """
         Update the status of a target.
         
         Args:
             target: Target name
-            status: New status (Starting/Running/Finished/Failed)
-            backup_size: Size of backup in bytes (for finished backups)
-            progress: Download progress (0-1) for Downloading status
+            status: New status (Starting/Running/Downloading/Finished/Failed)
+            size: Size of backup in bytes (optional)
         """
         if target not in self.status:
             return
@@ -190,21 +164,25 @@ class ComposeStyleHandler:
             self.start_times[target] = time.time()
             
         with self.lock:
+            # Update size if provided
+            if size > 0:
+                self.sizes[target] = size
+                
             # Don't overwrite terminal states
             if self.status[target] not in ["Finished", "Failed"]:
+                old_status = self.status[target]
                 self.status[target] = status
-                # Update backup size and progress
-                if backup_size > 0:
-                    self.backup_sizes[target] = backup_size
-                if status == "Downloading":
-                    self.download_progress[target] = progress
+                
+                # Update counters for terminal states
+                if status == "Finished" and old_status != "Finished":
+                    self.completed += 1
+                elif status == "Failed" and old_status != "Failed":
+                    self.failed += 1
+                    
                 # Record end time for terminal states
                 if status in ["Finished", "Failed"]:
                     self.end_times[target] = time.time()
-                    if status == "Failed":
-                        self.failed += 1
-                    else:
-                        self.completed += 1
+                    
                 # Force immediate update for state changes
                 self._print_output()
                 
@@ -214,11 +192,11 @@ class ComposeStyleHandler:
         if self.ticker:
             self.ticker.join(timeout=1.0)
             
-        # Print final output with summary
+        # Print final output with total time
         with self.lock:
             self._print_output()
             
-        # Move cursor past the output
-        # Header + newline + targets + 5 summary lines
-        sys.stdout.write(f"\033[{len(self.targets) + 6}B")
+        # Move cursor past the output (header + newline + targets + summary section)
+        summary_lines = 4 if self.completed > 0 else 3
+        sys.stdout.write(f"\033[{len(self.targets) + summary_lines + 2}B")
         sys.stdout.flush()
