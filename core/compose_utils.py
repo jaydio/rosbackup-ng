@@ -40,6 +40,8 @@ class ComposeStyleHandler:
         self.ticker = None
         self.spinner_idx = 0
         self.spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        # Get timestamp for this backup session
+        self.timestamp = datetime.now().strftime("%m%d%Y")
         
         # Initialize status for all targets
         for target in targets:
@@ -73,20 +75,16 @@ class ComposeStyleHandler:
         return f"{size:.1f}TB"
             
     def _calculate_total_size(self) -> int:
-        """Calculate total size of all backup files."""
+        """Calculate total size of all backup files from this session."""
         if not self.backup_dir:
             return 0
             
         total_size = 0
-        for target in self.targets:
-            target_dir = self.backup_dir / target
-            if target_dir.exists():
-                for file in target_dir.glob('*.*'):
-                    if file.suffix in ['.backup', '.rsc']:
-                        try:
-                            total_size += file.stat().st_size
-                        except (OSError, IOError):
-                            pass  # Skip files we can't read
+        # Search recursively for files containing today's timestamp
+        for file in self.backup_dir.rglob(f"*{self.timestamp}*.backup"):
+            total_size += file.stat().st_size
+        for file in self.backup_dir.rglob(f"*{self.timestamp}*.rsc"):
+            total_size += file.stat().st_size
         return total_size
             
     def _print_output(self):
