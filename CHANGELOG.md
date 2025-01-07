@@ -9,7 +9,7 @@
 
 ### Added
 - Added Docker Compose style output with improved state transitions and visual feedback
-  * New -x/--compose-style option for Docker Compose style output
+  * New ``--compose-style`` option for Docker Compose style output
 - Added "Downloading" state to provide better visibility of backup progress
 - Improved status handling to prevent state conflicts and ensure proper completion
 
@@ -59,9 +59,9 @@
 ## [0.2.0] - 2025-01-06
 
 ### Added
-- Progress bar support with `--progress-bar` flag showing overall backup progress
+- Progress bar support with ``--progress-bar`` flag showing overall backup progress
 - Parallel backup execution with configurable worker count
-- Target-specific backup support with `--target` option
+- Target-specific backup support with ``--target`` option
 - Better type definitions in backup_utils.py:
   * Added `BackupConfig` TypedDict for global configuration
   * Added `TargetConfig` TypedDict with detailed field documentation
@@ -128,8 +128,8 @@
 
 ### Added
 - New CLI options for controlling parallel execution (`--no-parallel`, `--max-parallel`)
-- Added `--target` option to run backup on specific target only
-- Progress bar support with `--progress-bar` flag showing overall backup progress
+- Added ``--target`` option to run backup on specific target only
+- Progress bar support with ``--progress-bar`` flag showing overall backup progress
 - Improved logging with cleaner output and reduced duplication
 - Shell completion improvements:
   * Removed short-form parameters in favor of long-form only
@@ -203,12 +203,12 @@
 
 ### Added
 - Added support for additional SSH parameters:
-  - `compress`: Enable transport layer compression
-  - `auth_timeout`: Authentication response timeout
-  - `channel_timeout`: Channel open timeout
-  - `disabled_algorithms`: Dict of algorithms to disable
-  - `keepalive_interval`: Seconds between keepalive packets
-  - `keepalive_countmax`: Max keepalive failures before disconnect
+  - ``compress``: Enable transport layer compression
+  - ``auth_timeout``: Authentication response timeout
+  - ``channel_timeout``: Channel open timeout
+  - ``disabled_algorithms``: Dict of algorithms to disable
+  - ``keepalive_interval``: Seconds between keepalive packets
+  - ``keepalive_countmax``: Max keepalive failures before disconnect
 
 ### Fixed
 - Fixed SSH configuration key from 'ssh_args' to 'ssh' to match documentation
