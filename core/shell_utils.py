@@ -11,13 +11,12 @@ import os
 import sys
 import hashlib
 import random
-import time
-import datetime
 from typing import Optional, List, Any, Dict
 from colorama import Fore, Style, init as colorama_init
 from tqdm import tqdm
-import pathlib
-import threading
+from datetime import datetime
+from pathlib import Path
+import time
 
 def supports_color():
     """Check if the terminal supports color output."""
@@ -210,146 +209,36 @@ class ColoredFormatter(BaseFormatter):
 
 
 class ShellPbarHandler:
-    """Shell progress bar handler."""
-
+    """Handler for shell progress bars."""
+    
     def __init__(self, total: int, desc: str = "", position: int = 0,
-                 leave: bool = True, ncols: int = 80,
-                 bar_format: str = '{desc:<20} {percentage:3.0f}%|{bar:40}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'):
-        """
-        Initialize the progress bar handler.
-
-        Args:
-            total: Total number of items
-            desc: Description
-            position: Position of the progress bar
-            leave: Whether to leave the progress bar after completion
-            ncols: Number of columns
-            bar_format: Progress bar format string
-        """
+                 leave: bool = True, ncols: int = 80, bar_format: str = None) -> None:
+        """Initialize progress bar."""
         self.total = total
         self.desc = desc
         self.position = position
         self.leave = leave
         self.ncols = ncols
-        self.bar_format = bar_format
-        self.n = 0
-        self.errors = 0
-        self.start_time = time.time()
-        self.last_print_n = 0
-        self.last_print_t = 0
-        self.print_count = 0
-        self.backup_dir = None  # Will be set by main script
-        self.timestamp = datetime.datetime.now().strftime("%m%d%Y")
-        self.lock = threading.Lock()
-        self.done = False
-        self.ticker = None
-        self._start_ticker()
-        self._print()  # Print initial bar
+        self.pbar = tqdm(
+            total=total,
+            desc=desc,
+            position=position,
+            leave=leave,
+            ncols=ncols,
+            mininterval=0.1,  # Update every 0.1 seconds
+            maxinterval=0.5,  # Force update at least every 0.5 seconds
+            bar_format=bar_format or '{desc:<30} {percentage:3.0f}%|{bar:20}{r_bar}'
+        )
 
-    def _start_ticker(self):
-        """Start the ticker thread for screen updates."""
-        def ticker():
-            while not self.done:
-                with self.lock:
-                    self._print()
-                time.sleep(0.1)  # Update every 100ms
+    def update(self, n: int = 1, desc: Optional[str] = None) -> None:
+        """Update progress bar."""
+        if desc:
+            self.pbar.set_description_str(desc)
+        self.pbar.update(n)
 
-        self.ticker = threading.Thread(target=ticker)
-        self.ticker.daemon = True
-        self.ticker.start()
-
-    def _format_size(self, size: int) -> str:
-        """Format file size in human readable format."""
-        for unit in ['B', 'KB', 'MB', 'GB']:
-            if size < 1024:
-                return f"{size:.1f}{unit}"
-            size /= 1024
-        return f"{size:.1f}TB"
-
-    def _calculate_total_size(self) -> int:
-        """Calculate total size of all backup files from this session."""
-        if not self.backup_dir:
-            return 0
-
-        total_size = 0
-        # Search recursively for files containing today's timestamp
-        for file in self.backup_dir.rglob(f"*{self.timestamp}*.backup"):
-            total_size += file.stat().st_size
-        for file in self.backup_dir.rglob(f"*{self.timestamp}*.rsc"):
-            total_size += file.stat().st_size
-        return total_size
-
-    def advance(self):
-        """Advance progress by one step."""
-        with self.lock:
-            self.n += 1
-            self._print()
-
-    def error(self):
-        """Record an error."""
-        with self.lock:
-            self.n += 1
-            self.errors += 1
-            self._print()
-
-    def _print(self):
-        """Print the progress bar."""
-        # Move cursor up if needed
-        if self.print_count > 0:
-            sys.stdout.write("\033[1A")
-            sys.stdout.write("\033[K")
-
-        # Calculate progress
-        pct = self.n / float(self.total)
-        filled_len = int(40 * pct)  # Use fixed width for bar
-        bar = "█" * filled_len + "-" * (40 - filled_len)
-
-        # Calculate time estimates
-        elapsed = time.time() - self.start_time
-        rate = self.n / elapsed if elapsed > 0 else 0
-        remaining = (self.total - self.n) / rate if rate > 0 else 0
-
-        # Format times
-        elapsed_str = str(datetime.timedelta(seconds=int(elapsed)))
-        if remaining == float('inf'):
-            remaining_str = "?"
-        else:
-            remaining_str = str(datetime.timedelta(seconds=int(remaining)))
-
-        # Format counts
-        n_fmt = str(self.n)
-        total_fmt = str(self.total)
-
-        # Build progress line
-        line = f"{self.desc:<20} {pct*100:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed_str}<{remaining_str}]"
-
-        # Print progress
-        print(line, flush=True)
-        self.print_count += 1
-
-    def close(self):
-        """Close the progress bar and print summary."""
-        self.done = True
-        if self.ticker:
-            self.ticker.join(timeout=1.0)
-
-        if not self.leave:
-            if self.print_count > 0:
-                sys.stdout.write("\033[1A")
-                sys.stdout.write("\033[K")
-        else:
-            # Print newline
-            print()
-
-            # Print summary statistics
-            total_elapsed = time.time() - self.start_time
-            total_size = self._calculate_total_size()
-            success_count = self.n - self.errors
-
-            print(f"{Style.BRIGHT}Summary:{Style.NORMAL}")
-            print(f"    Total time: {total_elapsed:.1f}s")
-            print(f"    Total size: {self._format_size(total_size)}")
-            print(f"    Success: {Fore.GREEN}{success_count}{Style.RESET_ALL} | Failed: {Fore.RED}{self.errors}{Style.RESET_ALL} | Total: {self.total}")
+    def close(self) -> None:
+        """Close progress bar."""
+        self.pbar.close()
 
     @classmethod
     def create_multi_bar(cls, total: int, names: List[str], position: int = 0,
@@ -391,3 +280,89 @@ class ShellPbarHandler:
         if not self.pbar.n >= self.pbar.total:
             self.pbar.n = self.pbar.total
             self.pbar.refresh()
+
+
+class BackupProgressHandler:
+    """Handler for backup progress tracking with summary statistics."""
+    
+    def __init__(self, total: int, desc: str = "", position: int = 0,
+                 leave: bool = True, ncols: int = 80, bar_format: str = None,
+                 backup_dir: Optional[str] = None) -> None:
+        """
+        Initialize progress handler.
+        
+        Args:
+            total: Total number of targets
+            desc: Description for progress bar
+            position: Position of progress bar
+            leave: Whether to leave progress bar after completion
+            ncols: Number of columns for progress bar
+            bar_format: Format string for progress bar
+            backup_dir: Optional backup directory for size calculation
+        """
+        self.total = total
+        self.desc = desc
+        self.backup_dir = Path(backup_dir) if backup_dir else None
+        self.start_time = time.time()
+        self.completed = 0
+        self.failed = 0
+        self.timestamp = datetime.now().strftime("%m%d%Y")
+        
+        # Create progress bar
+        self.pbar = tqdm(
+            total=total,
+            desc=desc,
+            position=position,
+            leave=leave,
+            ncols=ncols,
+            mininterval=0.1,
+            maxinterval=0.5,
+            bar_format=bar_format or '{desc:<30} {percentage:3.0f}%|{bar:20}{r_bar}'
+        )
+        
+    def _format_size(self, size: int) -> str:
+        """Format file size in human readable format."""
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if size < 1024:
+                return f"{size:.1f}{unit}"
+            size /= 1024
+        return f"{size:.1f}TB"
+        
+    def _calculate_total_size(self) -> int:
+        """Calculate total size of all backup files from this session."""
+        if not self.backup_dir:
+            return 0
+            
+        total_size = 0
+        # Search recursively for files containing today's timestamp
+        for file in self.backup_dir.rglob(f"*{self.timestamp}*.backup"):
+            total_size += file.stat().st_size
+        for file in self.backup_dir.rglob(f"*{self.timestamp}*.rsc"):
+            total_size += file.stat().st_size
+        return total_size
+        
+    def advance(self) -> None:
+        """Advance progress bar for successful backup."""
+        self.pbar.update(1)
+        self.completed += 1
+        
+    def error(self) -> None:
+        """Mark current item as failed."""
+        self.pbar.update(1)
+        self.failed += 1
+        
+    def close(self) -> None:
+        """Close progress bar and print summary."""
+        self.pbar.close()
+        
+        # Add a newline after progress bar
+        print()
+        
+        # Calculate and print summary
+        total_elapsed = time.time() - self.start_time
+        total_size = self._calculate_total_size()
+        
+        print(f"{Style.BRIGHT}Summary:{Style.NORMAL}")
+        print(f"    Total time: {total_elapsed:.1f}s")
+        print(f"    Total size: {self._format_size(total_size)}")
+        print(f"    Success: {Fore.GREEN}{self.completed}{Style.RESET_ALL} | Failed: {Fore.RED}{self.failed}{Style.RESET_ALL} | Total: {self.total}")

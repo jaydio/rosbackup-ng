@@ -26,7 +26,8 @@ from core import (
     LogManager,
     ColoredFormatter,
     ShellPbarHandler,
-    ComposeStyleHandler
+    ComposeStyleHandler,
+    BackupProgressHandler
 )
 from core.backup_utils import BackupManager
 from core.logging_utils import LogManager
@@ -532,15 +533,15 @@ def main() -> None:
         def progress_callback(target: str, status: str):
             progress_handler.update(target, status)
     elif args.progress_bar:
-        progress_handler = ShellPbarHandler(
+        progress_handler = BackupProgressHandler(
             total=len(targets_data),
             desc="Backup Progress",
             position=0,
             leave=True,
             ncols=100,
-            bar_format='{desc:<20} {percentage:3.0f}%|{bar:40}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
+            bar_format='{desc:<20} {percentage:3.0f}%|{bar:40}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]',
+            backup_dir=config['backup_path_parent']
         )
-        progress_handler.backup_dir = backup_path  # Set backup directory for size calculation
         def progress_callback(target: str, status: str):
             if status == "Failed":
                 progress_handler.error()
