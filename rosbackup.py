@@ -26,8 +26,7 @@ from core import (
     LogManager,
     ColoredFormatter,
     ShellPbarHandler,
-    ComposeStyleHandler,
-    BackupProgressHandler
+    ComposeStyleHandler
 )
 from core.backup_utils import BackupManager
 from core.logging_utils import LogManager
@@ -49,8 +48,6 @@ def parse_arguments() -> argparse.Namespace:
     output_group.add_argument("-L", "--log-level",
                             choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
                             default="INFO", help="Logging level")
-    output_group.add_argument("-b", "--progress-bar", action="store_true",
-                            help="Show progress bar during parallel execution (disables scrolling output)")
     output_group.add_argument("-x", "--compose-style", action="store_true",
                             help="Show Docker Compose style output instead of log messages")
     
@@ -420,7 +417,7 @@ def main() -> None:
 
     # Set up logging with correct timezone
     log_manager = LogManager()
-    if args.progress_bar or args.compose_style:
+    if args.compose_style:
         log_manager.setup(log_level='ERROR')
     else:
         log_manager.setup(log_level=args.log_level, log_file=args.log_file, use_colors=not args.no_color)
@@ -439,20 +436,20 @@ def main() -> None:
     # Apply CLI overrides for parallel execution settings
     if args.no_parallel:
         global_config['parallel_backups'] = False
-        if not args.progress_bar and not args.compose_style:
+        if not args.compose_style:
             logger.info("Parallel execution disabled via CLI")
     if args.max_parallel is not None:
         if args.max_parallel < 1:
             logger.error("max-parallel must be at least 1")
             sys.exit(1)
         global_config['max_parallel'] = args.max_parallel
-        if not args.progress_bar and not args.compose_style:
+        if not args.compose_style:
             logger.info(f"Maximum parallel backups set to {args.max_parallel} via CLI")
     
     # Handle timezone
     if 'timezone' in global_config_data:
         system_tz = get_system_timezone()
-        if not args.progress_bar and not args.compose_style:
+        if not args.compose_style:
             logger.info(f"Using timezone: {global_config_data['timezone']}")
         global_config['timezone'] = global_config_data['timezone']
         # Set timezone for logging
@@ -519,12 +516,12 @@ def main() -> None:
         if not targets_data:
             logger.error(f"Target not found: {args.target}")
             sys.exit(1)
-        if not args.progress_bar and not args.compose_style:
+        if not args.compose_style:
             logger.info(f"Running backup for target: {args.target}")
 
     # Filter enabled targets
     targets_data = [t for t in targets_data if t.get('enabled', True)]
-    if not args.progress_bar and not args.compose_style:
+    if not args.compose_style:
         logger.info(f"Found {len(targets_data)} enabled target(s)")
 
     # Create progress bar or compose style handler if enabled
@@ -532,21 +529,6 @@ def main() -> None:
         progress_handler = ComposeStyleHandler([t['name'] for t in targets_data], backup_path)
         def progress_callback(target: str, status: str):
             progress_handler.update(target, status)
-    elif args.progress_bar:
-        progress_handler = BackupProgressHandler(
-            total=len(targets_data),
-            desc="Backup Progress",
-            position=0,
-            leave=True,
-            ncols=100,
-            bar_format='{desc:<20} {percentage:3.0f}%|{bar:40}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]',
-            backup_dir=config['backup_path_parent']
-        )
-        def progress_callback(target: str, status: str):
-            if status == "Failed":
-                progress_handler.error()
-            elif status == "Finished":
-                progress_handler.advance()
     else:
         progress_handler = None
         progress_callback = None
@@ -558,7 +540,7 @@ def main() -> None:
 
     if global_config['parallel_backups'] and len(targets_data) > 1:
         max_workers = min(global_config['max_parallel'], len(targets_data))
-        if not args.progress_bar and not args.compose_style:
+        if not args.compose_style:
             logger.info(f"Running parallel backup with {max_workers} workers")
 
         try:
@@ -588,7 +570,7 @@ def main() -> None:
                         config_dir=args.config_dir,
                         dry_run=args.dry_run,
                         config=global_config,
-                        suppress_logs=args.progress_bar or args.compose_style,
+                        suppress_logs=args.compose_style,
                         compose_handler=progress_handler if args.compose_style else None,
                         progress_callback=progress_callback
                     )
@@ -602,7 +584,7 @@ def main() -> None:
                             failure_count += 1
                             target_name = target.get('name', target.get('host', 'Unknown'))
                             failed_targets.append(target_name)
-                            if not args.progress_bar and not args.compose_style:
+                            if not args.compose_style:
                                 logger.error(f"Backup failed for target: {target_name}")
                         if progress_handler:
                             if args.compose_style:
@@ -614,14 +596,14 @@ def main() -> None:
                         if progress_handler:
                             if args.compose_style:
                                 progress_handler.update(target['name'], "Failed")
-                        if not args.progress_bar and not args.compose_style:
+                        if not args.compose_style:
                             logger.error(f"Backup failed for target {target_name}: {str(e)}")
         except KeyboardInterrupt:
             logger.error("Backup operation interrupted by user")
             sys.exit(1)
     else:
         # Sequential backup
-        if not args.progress_bar and not args.compose_style:
+        if not args.compose_style:
             logger.info("Running sequential backup")
         
         for target in targets_data:
@@ -648,7 +630,7 @@ def main() -> None:
                     config_dir=args.config_dir,
                     dry_run=args.dry_run,
                     config=global_config,
-                    suppress_logs=args.progress_bar or args.compose_style,
+                    suppress_logs=args.compose_style,
                     compose_handler=progress_handler if args.compose_style else None,
                     progress_callback=progress_callback
                 ):
@@ -665,18 +647,11 @@ def main() -> None:
                 if progress_handler:
                     if args.compose_style:
                         progress_handler.update(target['name'], "Failed")
-                if not args.progress_bar and not args.compose_style:
+                if not args.compose_style:
                     logger.error(f"Backup failed: {str(e)}")
 
     if progress_handler:
         progress_handler.close()
-        # Only add newline for progress bar mode
-        if args.progress_bar:
-            print()  # Add newline after progress bar
-            if failed_targets:
-                print("Failed backups:")
-                for target in failed_targets:
-                    print(f"  - {target}")
     else:
         pass
 

@@ -14,9 +14,6 @@ import random
 from typing import Optional, List, Any, Dict
 from colorama import Fore, Style, init as colorama_init
 from tqdm import tqdm
-from datetime import datetime
-from pathlib import Path
-import time
 
 def supports_color():
     """Check if the terminal supports color output."""
@@ -280,89 +277,3 @@ class ShellPbarHandler:
         if not self.pbar.n >= self.pbar.total:
             self.pbar.n = self.pbar.total
             self.pbar.refresh()
-
-
-class BackupProgressHandler:
-    """Handler for backup progress tracking with summary statistics."""
-    
-    def __init__(self, total: int, desc: str = "", position: int = 0,
-                 leave: bool = True, ncols: int = 80, bar_format: str = None,
-                 backup_dir: Optional[str] = None) -> None:
-        """
-        Initialize progress handler.
-        
-        Args:
-            total: Total number of targets
-            desc: Description for progress bar
-            position: Position of progress bar
-            leave: Whether to leave progress bar after completion
-            ncols: Number of columns for progress bar
-            bar_format: Format string for progress bar
-            backup_dir: Optional backup directory for size calculation
-        """
-        self.total = total
-        self.desc = desc
-        self.backup_dir = Path(backup_dir) if backup_dir else None
-        self.start_time = time.time()
-        self.completed = 0
-        self.failed = 0
-        self.timestamp = datetime.now().strftime("%m%d%Y")
-        
-        # Create progress bar
-        self.pbar = tqdm(
-            total=total,
-            desc=desc,
-            position=position,
-            leave=leave,
-            ncols=ncols,
-            mininterval=0.1,
-            maxinterval=0.5,
-            bar_format=bar_format or '{desc:<30} {percentage:3.0f}%|{bar:20}{r_bar}'
-        )
-        
-    def _format_size(self, size: int) -> str:
-        """Format file size in human readable format."""
-        for unit in ['B', 'KB', 'MB', 'GB']:
-            if size < 1024:
-                return f"{size:.1f}{unit}"
-            size /= 1024
-        return f"{size:.1f}TB"
-        
-    def _calculate_total_size(self) -> int:
-        """Calculate total size of all backup files from this session."""
-        if not self.backup_dir:
-            return 0
-            
-        total_size = 0
-        # Search recursively for files containing today's timestamp
-        for file in self.backup_dir.rglob(f"*{self.timestamp}*.backup"):
-            total_size += file.stat().st_size
-        for file in self.backup_dir.rglob(f"*{self.timestamp}*.rsc"):
-            total_size += file.stat().st_size
-        return total_size
-        
-    def advance(self) -> None:
-        """Advance progress bar for successful backup."""
-        self.pbar.update(1)
-        self.completed += 1
-        
-    def error(self) -> None:
-        """Mark current item as failed."""
-        self.pbar.update(1)
-        self.failed += 1
-        
-    def close(self) -> None:
-        """Close progress bar and print summary."""
-        self.pbar.close()
-        
-        # Add a newline after progress bar
-        print()
-        
-        # Calculate and print summary
-        total_elapsed = time.time() - self.start_time
-        total_size = self._calculate_total_size()
-        
-        print(f"{Style.BRIGHT}Summary:{Style.NORMAL}")
-        print(f"    Total time: {total_elapsed:.1f}s")
-        print(f"    Total size: {self._format_size(total_size)}")
-        print(f"    Success: {Fore.GREEN}{self.completed}{Style.RESET_ALL} | Failed: {Fore.RED}{self.failed}{Style.RESET_ALL} | Total: {self.total}")
