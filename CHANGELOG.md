@@ -3,15 +3,13 @@
 ## [Unreleased]
 
 ### Added
-- Added Docker Compose style output option (-d/--compose-style) for a more detailed view of backup progress
-- Added -m argument for a more detailed view of backup progress
-- Added -x argument for a more detailed view of backup progress
 - Improved backup creation message to clearly indicate when a new backup file is created on the router
 
 ## [0.3.0] - 2025-01-07
 
 ### Added
-- Added CLI option for Docker Compose style output with improved state transitions and visual feedback
+- Added Docker Compose style output with improved state transitions and visual feedback
+  * New -x/--compose-style option for Docker Compose style output
 - Added "Downloading" state to provide better visibility of backup progress
 - Improved status handling to prevent state conflicts and ensure proper completion
 
@@ -88,7 +86,6 @@
   * Better error messages for failed operations
 - Shell completion improvements:
   * Removed short-form parameters in favor of long-form only
-  * Added progress bar option completion
 - Documentation updates:
   * Expanded notification channels in roadmap
   * Added ramdisk backup feature to roadmap
@@ -116,7 +113,6 @@
 
 ### Changed
 - Shell completion improvements:
-  * Added progress bar option completion
   * Removed short-form parameters in favor of long-form only
 - Documentation updates:
   * Expanded notification channels in roadmap
@@ -136,7 +132,6 @@
 - Progress bar support with `--progress-bar` flag showing overall backup progress
 - Improved logging with cleaner output and reduced duplication
 - Shell completion improvements:
-  * Added progress bar option completion
   * Removed short-form parameters in favor of long-form only
 - Comprehensive documentation:
   * Design reference with architecture and component flows
