@@ -262,9 +262,13 @@ class BackupManager:
         try:
             self.status_handler.update(target, "Downloading")
             
-            # Download the file
+            # Get file size using SFTP
+            sftp = self.client.open_sftp()
+            remote_size = sftp.stat(backup_file).st_size
+            sftp.close()
+            
+            # Download the file using SCP (faster than SFTP)
             with SCPClient(self.client.get_transport()) as scp:
-                remote_size = scp.stat(backup_file).st_size
                 scp.get(backup_file, self.local_path)
                 
             # Update status with size information
