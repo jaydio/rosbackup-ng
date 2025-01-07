@@ -33,7 +33,7 @@ from core.logging_utils import LogManager
 from core.router_utils import RouterInfoManager
 from core.shell_utils import ColoredFormatter, ShellPbarHandler
 from core.ssh_utils import SSHManager
-from core.time_utils import get_timezone, get_system_timezone, get_current_time
+from core.time_utils import get_timezone, get_system_timezone, get_current_time, get_timestamp
 
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
@@ -121,28 +121,6 @@ class TargetConfig(TypedDict):
     backup_retention_days: Optional[int]
 
 
-def get_timestamp(tz: Optional[ZoneInfo] = None) -> str:
-    """
-    Get current timestamp in backup file format.
-    
-    Args:
-        tz: Optional timezone for timestamp
-        
-    Returns:
-        str: Formatted timestamp string in MMDDYYYY-HHMMSS format
-    """
-    logger = LogManager().system
-    logger.debug(f"Getting timestamp with timezone: {tz}")
-    
-    # Generate timestamp in specified timezone
-    current_time = get_current_time()
-    if tz:
-        current_time = current_time.astimezone(tz)
-    
-    # Format timestamp
-    return current_time.strftime("%m%d%Y-%H%M%S")
-
-
 def backup_target(
     target: Dict[str, Any],
     ssh_args: Dict[str, Any],
@@ -184,6 +162,8 @@ def backup_target(
     """
     target_name = target.get('name', target.get('host', 'Unknown'))
     logger = LogManager().get_logger('BACKUP', target_name)
+    if suppress_logs:
+        logger.setLevel(logging.ERROR)
 
     try:
         if compose_handler:
@@ -310,6 +290,8 @@ def backup_target(
             if not suppress_logs:
                 logger.error("Failed to save router info file")
             return False
+        if compose_handler:
+            compose_handler.add_backup_file(info_file)
 
         if compose_handler:
             compose_handler.update(target_name, "Creating Backup")
@@ -331,6 +313,8 @@ def backup_target(
                 if not suppress_logs:
                     logger.error("Binary backup failed")
                 return False
+            if binary_file and compose_handler:
+                compose_handler.add_backup_file(binary_file)
 
         # Perform plaintext backup if enabled (default: True)
         plaintext_success = True
@@ -348,6 +332,8 @@ def backup_target(
                 if not suppress_logs:
                     logger.error("Plaintext backup failed")
                 return False
+            if plaintext_file and compose_handler:
+                compose_handler.add_backup_file(plaintext_file)
 
         if compose_handler:
             compose_handler.update(target_name, "Downloading")
@@ -418,7 +404,7 @@ def main() -> None:
     # Set up logging with correct timezone
     log_manager = LogManager()
     if args.compose_style:
-        log_manager.setup(log_level='ERROR')
+        log_manager.setup(log_level='ERROR', use_colors=not args.no_color)
     else:
         log_manager.setup(log_level=args.log_level, log_file=args.log_file, use_colors=not args.no_color)
     logger = log_manager.get_logger('SYSTEM')
@@ -588,14 +574,14 @@ def main() -> None:
                                 logger.error(f"Backup failed for target: {target_name}")
                         if progress_handler:
                             if args.compose_style:
-                                progress_handler.update(target['name'], "Finished" if success_count > 0 else "Failed")
+                                progress_handler.update(target_name, "Finished" if success_count > 0 else "Failed")
                     except Exception as e:
                         failure_count += 1
                         target_name = target.get('name', target.get('host', 'Unknown'))
                         failed_targets.append(target_name)
                         if progress_handler:
                             if args.compose_style:
-                                progress_handler.update(target['name'], "Failed")
+                                progress_handler.update(target_name, "Failed")
                         if not args.compose_style:
                             logger.error(f"Backup failed for target {target_name}: {str(e)}")
         except KeyboardInterrupt:

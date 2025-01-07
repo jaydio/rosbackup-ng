@@ -7,10 +7,10 @@ This module provides utilities for displaying backup progress in a Docker Compos
 import sys
 import time
 import threading
-from datetime import datetime
-from typing import Dict, List, Optional
 from pathlib import Path
 from colorama import Fore, Style
+from typing import Dict, List, Optional
+from .time_utils import get_timestamp
 
 class ComposeStyleHandler:
     """Handler for Docker Compose style output."""
@@ -28,6 +28,7 @@ class ComposeStyleHandler:
         self.position = 0
         self.total_targets = len(targets)
         self.process_start_time = time.time()
+        self.timestamp = get_timestamp()  # Use the same timestamp function as backup files
         self.start_times: Dict[str, float] = {}
         self.end_times: Dict[str, float] = {}
         self.status: Dict[str, str] = {}
@@ -40,8 +41,7 @@ class ComposeStyleHandler:
         self.ticker = None
         self.spinner_idx = 0
         self.spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-        # Get timestamp for this backup session
-        self.timestamp = datetime.now().strftime("%m%d%Y")
+        self.backup_files: List[Path] = []  # Track backup files created in this run
         
         # Initialize status for all targets
         for target in targets:
@@ -52,7 +52,7 @@ class ComposeStyleHandler:
         # Clear screen and print initial header
         print("\033[2J\033[H", end="")  # Clear screen and move cursor to top
         self._start_ticker()
-        
+            
     def _start_ticker(self):
         """Start the ticker thread for screen updates."""
         def ticker():
@@ -80,13 +80,18 @@ class ComposeStyleHandler:
             return 0
             
         total_size = 0
-        # Search recursively for files containing today's timestamp
-        for file in self.backup_dir.rglob(f"*{self.timestamp}*.backup"):
-            total_size += file.stat().st_size
-        for file in self.backup_dir.rglob(f"*{self.timestamp}*.rsc"):
-            total_size += file.stat().st_size
+        for file in self.backup_files:
+            if file.exists():  # Check if file still exists
+                total_size += file.stat().st_size
+            
         return total_size
             
+    def add_backup_file(self, file_path: Path):
+        """Add a backup file to be tracked for size calculation."""
+        with self.lock:
+            if file_path.exists():
+                self.backup_files.append(file_path)
+
     def _print_output(self):
         """Print the current status."""
         # Move cursor to top
@@ -127,10 +132,11 @@ class ComposeStyleHandler:
         # Print summary statistics
         if self.done:
             total_elapsed = time.time() - self.process_start_time
-            total_size = self._calculate_total_size()
+            if not self.backup_files:  # Only calculate size once at the end
+                self.total_size = self._calculate_total_size()
             print(f"\n{Style.BRIGHT}Summary:{Style.NORMAL}")
             print(f"    Total time: {total_elapsed:.1f}s")
-            print(f"    Total size: {self._format_size(total_size)}")
+            print(f"    Total size: {self._format_size(self._calculate_total_size())}")
             print(f"    Success: {Fore.GREEN}{self.completed}{Style.RESET_ALL} | Failed: {Fore.RED}{self.failed}{Style.RESET_ALL} | Total: {self.total_targets}")
                 
     def _get_elapsed_time(self, target: str) -> str:

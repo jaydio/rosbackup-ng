@@ -7,7 +7,8 @@ It supports encrypted backups, parallel execution, and various backup retention 
 
 import paramiko
 from pathlib import Path
-from typing import Dict, Optional, Tuple, TypedDict, Any, Callable
+from typing import Dict, List, Optional, Tuple, TypedDict, Any, Callable
+from zoneinfo import ZoneInfo
 import logging
 import os
 import re
@@ -16,8 +17,8 @@ import time
 from .ssh_utils import SSHManager
 from .router_utils import RouterInfoManager
 from .logging_utils import LogManager
+from .time_utils import get_timestamp
 import concurrent.futures
-import datetime
 
 class RouterInfo(TypedDict):
     """
@@ -302,7 +303,6 @@ class BackupManager:
             - Cleans up remote file if needed
         """
         if dry_run:
-            self.logger.debug("[DRY RUN] Would perform binary backup")
             return True, None
 
         # Generate backup file name
@@ -319,9 +319,6 @@ class BackupManager:
 
             # Execute backup command
             stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, backup_cmd)
-            self.logger.debug(f"Backup command: {backup_cmd}")
-            self.logger.debug(f"Stdout: {stdout}")
-            self.logger.debug(f"Stderr: {stderr}")
             if stderr or exit_status != 0:
                 self.logger.error(f"Error creating backup: {stderr}")
                 return False, None
@@ -329,12 +326,9 @@ class BackupManager:
             # Wait for backup to complete and verify file
             time.sleep(2)  # Give RouterOS time to create the file
             
-            self.logger.debug(f"Checking for backup file: {remote_path}")
             # Use /file print to check for file existence
             check_cmd = f"/file print where name=\"{remote_path}\""
             stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, check_cmd)
-            self.logger.debug(f"File check command: {check_cmd}")
-            self.logger.debug(f"File check output: {stdout}")
             if not stdout or "no such item" in stdout.lower() or exit_status != 0:
                 self.logger.error("Backup file was not created on router")
                 return False, None
@@ -413,50 +407,60 @@ class BackupManager:
             - Validates file writing operations
             - Manages router-side file operations
         """
-
         if dry_run:
-            self.logger.debug("[DRY RUN] Would perform plaintext backup")
             return True, None
 
-        # Export configuration to file
+        # Generate backup file name
+        backup_name = self._generate_backup_name(router_info, timestamp, 'rsc')
+        remote_path = backup_name
+        local_path = backup_dir / backup_name
+
         try:
-            # Execute export command and get output directly
-            stdin, stdout, stderr = ssh_client.exec_command('/export terse show-sensitive')
-            stdout = stdout.read().decode()
-            stderr = stderr.read().decode()
+            # Create export command
+            export_cmd = "/export terse show-sensitive file=\"{}\"".format(remote_path)
 
-            if stderr:
-                self.logger.error(f"Export command failed: {stderr.strip()}")
+            # Execute export command
+            stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, export_cmd)
+            if stderr or exit_status != 0:
+                self.logger.error(f"Error creating export: {stderr}")
                 return False, None
 
-            if not stdout:
-                self.logger.error("Export command produced no output")
+            # Wait for export to complete and verify file
+            time.sleep(2)  # Give RouterOS time to create the file
+
+            # Use /file print to check for file existence
+            check_cmd = f"/file print where name=\"{remote_path}\""
+            stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, check_cmd)
+            if not stdout or "no such item" in stdout.lower() or exit_status != 0:
+                self.logger.error("Export file was not created on router")
                 return False, None
 
-            # Generate backup file name
-            backup_name = self._generate_backup_name(router_info, timestamp, 'rsc')
-            backup_path = backup_dir / backup_name
+            self.logger.info(f"Successfully created export file {os.path.basename(remote_path)} on router")
 
-            # Save the export on the router first if requested
-            if keep_plaintext_backup:
-                try:
-                    save_command = f'/export terse show-sensitive file={backup_name}'
-                    stdin, stdout2, stderr = ssh_client.exec_command(save_command)
-                    stdout2 = stdout2.read().decode()
-                    stderr = stderr.read().decode()
-                    if stderr:
-                        self.logger.error(f"Failed to save export on router: {stderr.strip()}")
-                        return False, None
-                    self.logger.info(f"Plaintext export saved on router as {backup_name}")
-                except Exception as e:
-                    self.logger.error(f"Error saving export on router: {str(e)}")
-                    return False, None
+            # Download the export file
+            try:
+                with SCPClient(ssh_client.get_transport()) as scp:
+                    scp.get(remote_path, str(local_path))
+                self.logger.info(f"Downloaded {os.path.basename(remote_path)}")
+            except Exception as e:
+                self.logger.error(f"Failed to download export file: {str(e)}")
+                return False, None
 
-            # Save local backup
-            backup_path.write_text(stdout)
-            self.logger.info(f"Plaintext backup saved as {backup_name}")
+            # Remove the remote export file
+            if not keep_plaintext_backup:
+                rm_cmd = f"/file remove \"{remote_path}\""
+                stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, rm_cmd)
+                if not stderr and exit_status == 0:
+                    self.logger.info(f"Removed remote {os.path.basename(remote_path)}")
+                else:
+                    self.logger.warning(f"Failed to remove remote export file: {stderr}")
 
-            return True, backup_path
+            # Verify local export file exists and has size
+            if not local_path.exists() or local_path.stat().st_size == 0:
+                self.logger.error("Local export file is missing or empty")
+                return False, None
+
+            return True, local_path
 
         except Exception as e:
             self.logger.error(f"Plaintext backup failed: {str(e)}")
@@ -490,7 +494,6 @@ class BackupManager:
             - Overall Statistics
         """
         if dry_run:
-            self.logger.debug(f"[DRY RUN] Would save router info to {info_file_path}")
             return True
 
         try:
@@ -704,7 +707,7 @@ def backup_router(target: TargetConfig, config: BackupConfig,
             backup_dir.mkdir(parents=True, exist_ok=True)
 
             # Get timestamp for filenames
-            timestamp = datetime.datetime.now().strftime("%m%d%Y-%H%M%S")
+            timestamp = get_timestamp()
 
             # Perform binary backup if enabled
             if target.get('enable_binary_backup', True):
