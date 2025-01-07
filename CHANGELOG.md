@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.0] - 2025-01-08
+
+### Added
+- Improved backup size tracking in compose-style output:
+  * Added direct file tracking for accurate size calculations
+  * Removed debug output from size calculation
+  * Fixed incremental size updates during backup
+- Enhanced compose-style output with better file handling and status updates
+- Added proper handling of binary, plaintext, and info files in size calculations
+
 ## [Unreleased]
 
 ### Added
