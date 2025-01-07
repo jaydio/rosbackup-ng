@@ -35,6 +35,8 @@ class ComposeStyleHandler:
         self.lock = threading.Lock()
         self.done = False
         self.ticker = None
+        self.spinner_idx = 0
+        self.spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         
         # Initialize status for all targets
         for target in targets:
@@ -52,6 +54,7 @@ class ComposeStyleHandler:
             while not self.done:
                 with self.lock:
                     self._print_output()
+                    self.spinner_idx = (self.spinner_idx + 1) % len(self.spinner_frames)
                 time.sleep(0.1)  # Update every 100ms like Docker Compose
                 
         self.ticker = threading.Thread(target=ticker)
@@ -75,13 +78,13 @@ class ComposeStyleHandler:
             if status == "Failed":
                 color = Fore.RED
                 symbol = "✘"
-                status = "FAILED"  # Show FAILED instead of ERROR
+                status = "FAILED"
             elif status == "Finished":
                 color = Fore.GREEN
                 symbol = "✔"
             else:
                 color = Fore.BLUE
-                symbol = "⋯"  # Use dots for in-progress states
+                symbol = self.spinner_frames[self.spinner_idx]
                 
             # Format the line with proper spacing
             line = f"    {color}{symbol} {target:<20} {status:<15} {elapsed:>10}{Style.RESET_ALL}"
@@ -92,8 +95,6 @@ class ComposeStyleHandler:
             total_elapsed = time.time() - self.process_start_time
             print(f"\n    Total time elapsed: {total_elapsed:.1f}s")
                 
-        sys.stdout.flush()
-            
     def _get_elapsed_time(self, target: str) -> str:
         """Get elapsed time for a target."""
         if self.start_times[target] == 0:
