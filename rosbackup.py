@@ -155,7 +155,8 @@ def backup_target(
     dry_run: bool = False,
     config: Optional[GlobalConfig] = None,
     suppress_logs: bool = False,
-    compose_handler: Optional[ComposeStyleHandler] = None
+    compose_handler: Optional[ComposeStyleHandler] = None,
+    progress_callback: Optional[callable] = None
 ) -> bool:
     """
     Backup a single target's configuration.
@@ -171,6 +172,7 @@ def backup_target(
         config: Optional global configuration
         suppress_logs: If True, suppress log messages (used with progress bar)
         compose_handler: Optional ComposeStyleHandler for Docker Compose style output
+        progress_callback: Optional callback function for progress updates
 
     Returns:
         bool: True if backup successful, False otherwise
@@ -525,8 +527,12 @@ def main() -> None:
         logger.info(f"Found {len(targets_data)} enabled target(s)")
 
     # Create progress bar or compose style handler if enabled
-    if args.progress_bar:
-        pbar = ShellPbarHandler(
+    if args.compose_style:
+        progress_handler = ComposeStyleHandler([t['name'] for t in targets_data])
+        def progress_callback(target: str, status: str, file_size: Optional[int] = None):
+            progress_handler.update(target, status, file_size)
+    elif args.progress_bar:
+        progress_handler = ShellPbarHandler(
             total=len(targets_data),
             desc="Backup Progress",
             position=0,
@@ -534,10 +540,14 @@ def main() -> None:
             ncols=100,
             bar_format='{desc:<20} {percentage:3.0f}%|{bar:40}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
         )
-    elif args.compose_style:
-        pbar = ComposeStyleHandler([t['name'] for t in targets_data])
+        def progress_callback(target: str, status: str, file_size: Optional[int] = None):
+            if status == "Failed":
+                progress_handler.error()
+            elif status == "Finished":
+                progress_handler.advance()
     else:
-        pbar = None
+        progress_handler = None
+        progress_callback = None
 
     # Execute backups
     success_count = 0
@@ -577,7 +587,8 @@ def main() -> None:
                         dry_run=args.dry_run,
                         config=global_config,
                         suppress_logs=args.progress_bar or args.compose_style,
-                        compose_handler=pbar if args.compose_style else None
+                        compose_handler=progress_handler if args.compose_style else None,
+                        progress_callback=progress_callback
                     )
                     futures.append((target, future))
 
@@ -591,18 +602,16 @@ def main() -> None:
                             failed_targets.append(target_name)
                             if not args.progress_bar and not args.compose_style:
                                 logger.error(f"Backup failed for target: {target_name}")
-                        if pbar:
-                            if args.progress_bar:
-                                pbar.update(1)
-                            elif args.compose_style:
-                                pbar.update(target['name'], "Finished" if success_count > 0 else "Failed")
+                        if progress_handler:
+                            if args.compose_style:
+                                progress_handler.update(target['name'], "Finished" if success_count > 0 else "Failed")
                     except Exception as e:
                         failure_count += 1
                         target_name = target.get('name', target.get('host', 'Unknown'))
                         failed_targets.append(target_name)
-                        if pbar:
+                        if progress_handler:
                             if args.compose_style:
-                                pbar.update(target['name'], "Failed")
+                                progress_handler.update(target['name'], "Failed")
                         if not args.progress_bar and not args.compose_style:
                             logger.error(f"Backup failed for target {target_name}: {str(e)}")
         except KeyboardInterrupt:
@@ -638,26 +647,27 @@ def main() -> None:
                     dry_run=args.dry_run,
                     config=global_config,
                     suppress_logs=args.progress_bar or args.compose_style,
-                    compose_handler=pbar if args.compose_style else None
+                    compose_handler=progress_handler if args.compose_style else None,
+                    progress_callback=progress_callback
                 ):
                     success_count += 1
                 else:
                     failure_count += 1
                     failed_targets.append(target.get('name', target.get('host', 'Unknown')))
-                if pbar:
+                if progress_handler:
                     if args.compose_style:
-                        pbar.update(target['name'], "Finished" if success_count > 0 else "Failed")
+                        progress_handler.update(target['name'], "Finished" if success_count > 0 else "Failed")
             except Exception as e:
                 failure_count += 1
                 failed_targets.append(target.get('name', target.get('host', 'Unknown')))
-                if pbar:
+                if progress_handler:
                     if args.compose_style:
-                        pbar.update(target['name'], "Failed")
+                        progress_handler.update(target['name'], "Failed")
                 if not args.progress_bar and not args.compose_style:
                     logger.error(f"Backup failed: {str(e)}")
 
-    if pbar:
-        pbar.close()
+    if progress_handler:
+        progress_handler.close()
         # Only add newline for progress bar mode
         if args.progress_bar:
             print()  # Add newline after progress bar

@@ -17,6 +17,7 @@ from .ssh_utils import SSHManager
 from .router_utils import RouterInfoManager
 from .logging_utils import LogManager
 import concurrent.futures
+import datetime
 
 class RouterInfo(TypedDict):
     """
@@ -257,33 +258,6 @@ class BackupManager:
         router_name = f"{router_info['identity']}_{ros_version}_{router_info['architecture_name']}"
         return f"{router_name}_{timestamp}.{extension}"
 
-    def download_backup(self, target: str, backup_file: str) -> bool:
-        """Download backup file from router."""
-        try:
-            self.status_handler.update(target, "Downloading")
-            
-            # Get file size using SFTP
-            sftp = self.client.open_sftp()
-            remote_size = sftp.stat(backup_file).st_size
-            sftp.close()
-            
-            # Download the file using SCP (faster than SFTP)
-            with SCPClient(self.client.get_transport()) as scp:
-                scp.get(backup_file, self.local_path)
-                
-            # Update status with size information
-            if isinstance(self.status_handler, ComposeStyleHandler):
-                self.status_handler.update(target, "Finished", remote_size)
-            else:
-                self.status_handler.update(target, "Finished")
-                
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Failed to download backup from {target}: {e}")
-            self.status_handler.update(target, "Failed")
-            return False
-
     def perform_binary_backup(
         self,
         ssh_client: paramiko.SSHClient,
@@ -370,9 +344,8 @@ class BackupManager:
             # Download the backup file
             try:
                 with SCPClient(ssh_client.get_transport()) as scp:
-                    remote_size = scp.stat(remote_path).st_size
                     scp.get(remote_path, str(local_path))
-                self.logger.info(f"Downloaded {os.path.basename(remote_path)} ({remote_size} bytes)")
+                self.logger.info(f"Downloaded {os.path.basename(remote_path)}")
             except Exception as e:
                 self.logger.error(f"Failed to download backup file: {str(e)}")
                 return False, None
@@ -670,7 +643,7 @@ def backup_parallel(targets: Dict[str, TargetConfig], config: BackupConfig,
 def backup_router(target: TargetConfig, config: BackupConfig,
                  backup_password: str, backup_path: str,
                  dry_run: bool = False,
-                 progress_callback: Optional[Callable[[str, int], None]] = None) -> bool:
+                 progress_callback: Optional[Callable[[str, str, Optional[int]], None]] = None) -> bool:
     """
     Perform backup of a single router.
 
@@ -694,56 +667,80 @@ def backup_router(target: TargetConfig, config: BackupConfig,
         router_info_manager = RouterInfoManager(ssh_manager, logger)
         backup_manager = BackupManager(ssh_manager, router_info_manager, logger)
 
-        # Update progress: Connecting
+        # Update progress
         if progress_callback:
-            progress_callback(desc=f"{target_name} (Connecting)")
+            progress_callback(target_name, "Starting", None)
 
-        # Connect to router
-        ssh_client = ssh_manager.connect(target)
-        if not ssh_client:
-            logger.error("Failed to connect to router")
-            return False
-
-        # Update progress: Getting Info
-        if progress_callback:
-            progress_callback(1, desc=f"{target_name} (Getting Info)")
-
-        # Get router info
-        router_info = router_info_manager.get_router_info(ssh_client)
-        if not router_info:
-            logger.error("Failed to get router info")
-            return False
-
-        # Update progress: Creating Backup
-        if progress_callback:
-            progress_callback(2, desc=f"{target_name} (Creating Backup)")
-
-        # Create backup directory
-        backup_dir = Path(backup_path)
-        if not dry_run:
-            backup_dir.mkdir(parents=True, exist_ok=True)
-
-        # Get timestamp
-        timestamp = get_timestamp()
-
-        # Perform backup
-        success = backup_manager.perform_backup(
-            ssh_client=ssh_client,
-            router_info=router_info,
-            backup_password=backup_password,
-            backup_dir=backup_dir,
-            timestamp=timestamp,
-            dry_run=dry_run
+        # Create SSH client
+        ssh_client = ssh_manager.get_client(
+            target_name,
+            target['host'],
+            target['port'],
+            target['user'],
+            target.get('key_file'),
+            target.get('known_hosts_file'),
+            target.get('add_host_key', True)
         )
 
-        # Update progress: Success/Failed
-        if progress_callback:
-            progress_callback(2, desc=f"{target_name} (Success)" if success else f"{target_name} (Failed)")
+        if not ssh_client:
+            if progress_callback:
+                progress_callback(target_name, "Failed", None)
+            return False
 
-        return success
+        try:
+            # Update progress
+            if progress_callback:
+                progress_callback(target_name, "Running", None)
+
+            # Get router info
+            router_info = router_info_manager.get_router_info(ssh_client)
+            if not router_info:
+                if progress_callback:
+                    progress_callback(target_name, "Failed", None)
+                return False
+
+            # Create backup directory
+            backup_dir = Path(backup_path) / target_name
+            backup_dir.mkdir(parents=True, exist_ok=True)
+
+            # Get timestamp for filenames
+            timestamp = datetime.datetime.now().strftime("%m%d%Y-%H%M%S")
+
+            # Perform binary backup if enabled
+            if target.get('enable_binary_backup', True):
+                if progress_callback:
+                    progress_callback(target_name, "Downloading", None)
+                success, backup_path = backup_manager.perform_binary_backup(
+                    ssh_client,
+                    router_info,
+                    backup_password,
+                    target.get('encrypted', False),
+                    backup_dir,
+                    timestamp,
+                    target.get('keep_binary_backup', False),
+                    dry_run
+                )
+                if not success:
+                    if progress_callback:
+                        progress_callback(target_name, "Failed", None)
+                    return False
+                
+                # Get backup file size
+                if backup_path and progress_callback:
+                    file_size = backup_path.stat().st_size
+                    progress_callback(target_name, "Finished", file_size)
+                
+            else:
+                if progress_callback:
+                    progress_callback(target_name, "Finished", None)
+
+            return True
+
+        finally:
+            ssh_client.close()
 
     except Exception as e:
         logger.error(f"Backup failed: {str(e)}")
         if progress_callback:
-            progress_callback(0, desc=f"{target_name} (Failed)")
+            progress_callback(target_name, "Failed", None)
         return False
