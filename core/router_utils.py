@@ -13,13 +13,119 @@ from .ssh_utils import SSHManager
 from .logging_utils import LogManager
 
 
+class SystemIdentityInfo(TypedDict):
+    """System identity information."""
+    identity: str  # Router identity name
+    name: str     # Router name
+
+
+class HardwareInfo(TypedDict):
+    """Hardware specifications."""
+    model: str               # Router hardware model
+    board_name: str         # Physical board name
+    serial_number: str      # Hardware serial number
+    firmware_type: str      # Type of firmware
+    factory_firmware: str   # Factory installed firmware version
+    current_firmware: str   # Currently running firmware version
+    upgrade_firmware: str   # Available firmware upgrade version
+
+
+class ResourceInfo(TypedDict):
+    """System resource information."""
+    uptime: str                    # System uptime
+    version: str                   # RouterOS version
+    build_time: str               # Build timestamp
+    free_memory: str              # Available RAM
+    total_memory: str             # Total RAM
+    cpu_name: str                 # CPU model name
+    cpu_count: str                # Number of CPU cores
+    cpu_frequency: str            # CPU frequency
+    cpu_load: str                 # Current CPU load
+    free_hdd_space: str          # Available disk space
+    total_hdd_space: str         # Total disk space
+    write_sect_since_reboot: str # Write sectors since reboot
+    write_sect_total: str        # Total write sectors
+    bad_blocks: str              # Number of bad blocks
+    architecture_name: str       # CPU architecture
+    platform: str                # Platform type
+
+
+class LicenseInfo(TypedDict):
+    """License information."""
+    system_id: str      # System identifier
+    upgradable_to: str  # Maximum upgradable version
+    license: str        # License level
+    features: str       # Licensed features
+    ros_version: str    # RouterOS version
+
+
+class TimeInfo(TypedDict):
+    """Time and timezone settings."""
+    time: str                  # Current time
+    date: str                  # Current date
+    time_zone_autodetect: str # Timezone autodetection
+    time_zone_name: str       # Timezone name
+    gmt_offset: str           # GMT offset
+    dst_active: str           # DST status
+
+
+class NetworkInfo(TypedDict):
+    """Network configuration statistics."""
+    # Firewall Statistics
+    ipv4_fw_filter: str        # IPv4 filter rules count
+    ipv6_fw_filter: str        # IPv6 filter rules count
+    ipv4_fw_raw: str          # IPv4 raw rules count
+    ipv6_fw_raw: str          # IPv6 raw rules count
+    ipv4_fw_nat: str          # IPv4 NAT rules count
+    ipv6_fw_nat: str          # IPv6 NAT rules count
+    ipv4_fw_connections: str   # Active IPv4 connections
+    ipv6_fw_connections: str   # Active IPv6 connections
+    ipv4_fw_mangle: str       # IPv4 mangle rules count
+    ipv6_fw_mangle: str       # IPv6 mangle rules count
+    ipv4_fw_address_list: str # IPv4 address list entries
+    ipv6_fw_address_list: str # IPv6 address list entries
+    
+    # IP Configuration
+    ipv4_addresses: str       # IPv4 addresses count
+    ipv6_addresses: str       # IPv6 addresses count
+    ipv4_pools: str          # IPv4 pools count
+    ipv6_pools: str          # IPv6 pools count
+    
+    # DHCP Information
+    ipv4_dhcp_servers: str   # IPv4 DHCP servers count
+    ipv6_dhcp_servers: str   # IPv6 DHCP servers count
+    ipv4_dhcp_clients: str   # IPv4 DHCP clients count
+    ipv6_dhcp_clients: str   # IPv6 DHCP clients count
+    ipv4_dhcp_relays: str    # IPv4 DHCP relays count
+    ipv6_dhcp_relays: str    # IPv6 DHCP relays count
+    
+    # Interface Statistics
+    bridge_interfaces: str    # Bridge interfaces count
+    bond_interfaces: str      # Bonding interfaces count
+    vlan_interfaces: str      # VLAN interfaces count
+    ethernet_interfaces: str  # Physical interfaces count
+    ppp_active_sessions: str # Active PPP sessions
+    queue_tree_items: str    # QoS queue items
+    
+    # ARP/Neighbor Information
+    ipv4_arp_failed: str     # Failed ARP entries
+    ipv4_arp_permanent: str  # Permanent ARP entries
+    ipv4_arp_reachable: str  # Reachable ARP entries
+    ipv6_neighbors: str      # IPv6 neighbor entries
+
+
 class RouterInfo(TypedDict):
-    """Router information dictionary type definition."""
-    # System Identity
-    identity: str
+    """
+    Complete router information combining all information categories.
+    
+    This TypedDict includes all router information organized into logical
+    categories for better structure and maintainability.
+    """
+    # Include all sub-categories
+    identity: str  # From SystemIdentityInfo
     name: str
     
-    # System Resource
+    # Hardware Information
     model: str
     board_name: str
     serial_number: str
@@ -28,7 +134,7 @@ class RouterInfo(TypedDict):
     current_firmware: str
     upgrade_firmware: str
     
-    # System Resources
+    # Resource Information
     uptime: str
     version: str
     build_time: str
@@ -46,14 +152,14 @@ class RouterInfo(TypedDict):
     architecture_name: str
     platform: str
     
-    # License
+    # License Information
     system_id: str
     upgradable_to: str
     license: str
     features: str
     ros_version: str
     
-    # Clock Settings
+    # Time Settings
     time: str
     date: str
     time_zone_autodetect: str
@@ -61,7 +167,7 @@ class RouterInfo(TypedDict):
     gmt_offset: str
     dst_active: str
     
-    # Overall Statistics
+    # Network Statistics
     ipv4_fw_filter: str
     ipv6_fw_filter: str
     ipv4_fw_raw: str
@@ -76,14 +182,14 @@ class RouterInfo(TypedDict):
     ipv6_fw_address_list: str
     ipv4_addresses: str
     ipv6_addresses: str
+    ipv4_pools: str
+    ipv6_pools: str
     ipv4_dhcp_servers: str
     ipv6_dhcp_servers: str
     ipv4_dhcp_clients: str
     ipv6_dhcp_clients: str
     ipv4_dhcp_relays: str
     ipv6_dhcp_relays: str
-    ipv4_pools: str
-    ipv6_pools: str
     ppp_active_sessions: str
     bridge_interfaces: str
     bond_interfaces: str
@@ -305,7 +411,7 @@ class RouterInfoManager:
             - Handles invalid size values
             - Logs errors for troubleshooting
         """
-        stdout, _ = self.ssh_manager.execute_command(
+        stdout, _, _ = self.ssh_manager.execute_command(
             ssh_client, 
             f':put [file get [find name="{backup_file}"] size]'
         )
@@ -336,7 +442,7 @@ class RouterInfoManager:
             - Returns False on any permission failure
         """
         # Check if we can read system resources
-        stdout, _ = self.ssh_manager.execute_command(
+        stdout, _, _ = self.ssh_manager.execute_command(
             ssh_client, 
             ':put [/system resource get total-memory]'
         )
@@ -345,7 +451,7 @@ class RouterInfoManager:
             return False
 
         # Check if we can access the file system
-        stdout, _ = self.ssh_manager.execute_command(
+        stdout, _, _ = self.ssh_manager.execute_command(
             ssh_client,
             ':put [file get [find type="directory" and name=""] name]'
         )

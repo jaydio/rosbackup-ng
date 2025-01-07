@@ -21,8 +21,16 @@ class ParamikoFilter(logging.Filter):
         super().__init__()
         self.target_name = target_name
 
-    def filter(self, record):
-        """Add target_name to the log record."""
+    def filter(self, record) -> bool:
+        """
+        Add target_name to the log record and filter certain messages.
+        
+        Args:
+            record: The log record to filter
+            
+        Returns:
+            bool: True if the record should be logged, False if it should be filtered out
+        """
         # Always set target_name
         record.target_name = self.target_name
         # Skip "Connected" messages for transport
@@ -41,8 +49,16 @@ class ParamikoFormatter(BaseFormatter):
     def __init__(self, target_name: str):
         super().__init__(target_name=target_name)
 
-    def format(self, record):
-        """Format the log record."""
+    def format(self, record) -> str:
+        """
+        Format the log record with target information.
+        
+        Args:
+            record: The log record to format
+            
+        Returns:
+            str: The formatted log message
+        """
         # Always set target_name
         record.target_name = self.target_name
         return super().format(record)
@@ -298,7 +314,7 @@ class SSHManager:
             True if file exists, False otherwise
         """
         try:
-            stdout, stderr = self.execute_command(ssh_client, f"/file print where name=\"{file_path}\"")
+            stdout, stderr, _ = self.execute_command(ssh_client, f"/file print where name=\"{file_path}\"")
             return bool(stdout and "no such item" not in stdout.lower())
         except Exception as e:
             self.logger.error(f"Error checking file existence: {str(e)}")

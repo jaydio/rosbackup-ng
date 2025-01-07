@@ -4,6 +4,14 @@ All notable changes to rosbackup-ng.
 
 ## [Unreleased]
 
+## [0.2.2] - 2025-01-07
+
+### Fixed
+- Fixed SSH key path resolution to be relative to project root instead of config directory
+- Fixed tuple unpacking in SSH command execution results
+- Improved error handling in dry-run mode
+- Enhanced logging for SSH authentication and router access validation
+
 ## [0.2.1] - 2025-01-07
 
 ### Added

@@ -228,12 +228,16 @@ class BackupManager:
         self.logger = logger or LogManager().system
 
     def _clean_version_string(self, version: str) -> str:
-        """Clean RouterOS version string by removing (stable) suffix."""
-        # Remove (stable) or similar suffixes
-        version = re.sub(r'\s*\([^)]*\)', '', version)
-        # Remove any remaining spaces
-        version = version.strip()
-        return version
+        """
+        Clean RouterOS version string by removing (stable) suffix.
+        
+        Args:
+            version: The version string to clean
+            
+        Returns:
+            str: The cleaned version string without the (stable) suffix
+        """
+        return re.sub(r'\s*\(stable\)\s*$', '', version)
 
     def _generate_backup_name(self, router_info: RouterInfo, timestamp: str, extension: str) -> str:
         """
@@ -601,7 +605,13 @@ def backup_parallel(targets: Dict[str, TargetConfig], config: BackupConfig,
         progress_callback: Optional callback for progress updates
 
     Returns:
-        Number of successful backups
+        int: Number of successful backups
+
+    Error Handling:
+        - Handles SSH connection failures for individual targets
+        - Manages worker pool lifecycle
+        - Aggregates and reports individual backup failures
+        - Ensures proper cleanup of resources on failure
     """
     success_count = 0
     futures = []

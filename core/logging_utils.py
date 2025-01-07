@@ -229,24 +229,70 @@ class LogManager:
         return self._loggers[system_key]
 
 class BaseFormatter(logging.Formatter):
-    """Base formatter for all log messages."""
+    """
+    Base formatter for all log messages.
+    
+    Provides consistent formatting for log messages across all components.
+    """
 
-    def __init__(self, target_name: str = 'SYSTEM'):
-        """Initialize the formatter."""
-        fmt = '%(asctime)s [%(levelname)s] [%(target_name)s] %(message)s'
-        datefmt = '%Y-%m-%d %H:%M:%S'
+    def __init__(self, fmt: Optional[str] = None, datefmt: Optional[str] = None, target_name: str = 'SYSTEM') -> None:
+        """
+        Initialize the formatter.
+        
+        Args:
+            fmt: Log message format string
+            datefmt: Date format string
+            target_name: Name of the target for logging context
+        """
+        if fmt is None:
+            fmt = '%(asctime)s [%(levelname)s] [%(target_name)s] %(message)s'
+        if datefmt is None:
+            datefmt = '%m-%d-%Y %H:%M:%S'
         super().__init__(fmt=fmt, datefmt=datefmt)
         self.target_name = target_name
 
-    def format(self, record):
-        """Format the log record."""
-        if not hasattr(record, 'target_name'):
-            record.target_name = self.target_name
-        # Don't repeat target_name in message
-        if record.target_name == 'SYSTEM' and '[SYSTEM]' in record.msg:
-            record.msg = record.msg.replace('[SYSTEM]', '').strip()
+    def format(self, record: logging.LogRecord) -> str:
+        """
+        Format the log record.
+        
+        Args:
+            record: Log record to format
+            
+        Returns:
+            str: Formatted log message
+        """
+        record.target_name = getattr(record, 'target_name', self.target_name)
         return super().format(record)
 
 
 class ColoredFormatter(BaseFormatter):
-    """Colored formatter for console output."""
+    """
+    Formatter that adds colors to log messages.
+    
+    Extends BaseFormatter to add color support for console output.
+    """
+
+    def __init__(self, fmt: Optional[str] = None, datefmt: Optional[str] = None,
+                 target_name: str = 'SYSTEM', use_colors: bool = True) -> None:
+        """
+        Initialize the formatter with color support detection.
+        
+        Args:
+            fmt: Log message format string
+            datefmt: Date format string
+            target_name: Name of the target for logging context
+            use_colors: Whether to enable colored output
+        """
+        super().__init__(fmt=fmt, datefmt=datefmt, target_name=target_name)
+        self.use_color = use_colors and supports_color()
+
+    def format(self, record: logging.LogRecord) -> str:
+        """
+        Format the log record with colors.
+        
+        Args:
+            record: Log record to format
+            
+        Returns:
+            str: Formatted log message with color codes
+        """

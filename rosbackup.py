@@ -147,6 +147,7 @@ def backup_target(
     backup_password: str,
     notifier: NotificationManager,
     backup_path: Path,
+    config_dir: str,
     dry_run: bool = False,
     config: Optional[GlobalConfig] = None,
     suppress_logs: bool = False
@@ -160,6 +161,7 @@ def backup_target(
         backup_password: Password for encrypted backups
         notifier: Notification manager
         backup_path: Path to store backups
+        config_dir: Directory containing configuration files
         dry_run: If True, simulate operations
         config: Optional global configuration
         suppress_logs: If True, suppress log messages (used with progress bar)
@@ -177,31 +179,88 @@ def backup_target(
     target_name = target.get('name', target.get('host', 'Unknown'))
     logger = LogManager().get_logger('BACKUP', target_name)
 
-    if dry_run:
-        if not suppress_logs:
-            logger.info(f"[DRY RUN] Would backup target: {target_name}")
-        return True
-
     try:
         # Initialize managers
         ssh = SSHManager(ssh_args, target_name)
         router_info = RouterInfoManager(ssh, target_name)
         backup_manager = BackupManager(ssh, router_info, logger)
         
+        # Get SSH configuration from target and global settings
+        target_ssh = target.get('ssh', {})
+        
         # Get private key path from target or global config
-        key_path = target.get('private_key', ssh_args.get('private_key'))
+        key_path = target_ssh.get('private_key', ssh_args.get('private_key'))
         if not key_path:
             if not suppress_logs:
-                logger.error("No private key specified in target or global config")
+                logger.error("No SSH private key specified in target or global config")
+                logger.error("Please set 'private_key' in either target SSH config or global SSH config")
+            return False
+
+        # Resolve relative key path if needed
+        if not os.path.isabs(key_path):
+            project_root = str(Path(config_dir).parent.resolve())
+            key_path = os.path.normpath(os.path.join(project_root, key_path))
+            
+        # Verify key file exists
+        if not os.path.isfile(key_path):
+            if not suppress_logs:
+                logger.error(f"SSH private key not found: {key_path}")
+                logger.error("Please check that the key file exists and the path is correct")
             return False
 
         # Get SSH user from target or global config
-        ssh_user = target.get('ssh_user', ssh_args.get('user', 'rosbackup'))
+        ssh_user = target_ssh.get('user', ssh_args.get('user', 'rosbackup'))
+        ssh_port = target_ssh.get('port', 22)
 
-        # Create SSH client
+        if dry_run:
+            if not suppress_logs:
+                logger.info(f"[DRY RUN] Testing SSH authentication for target: {target_name}")
+                logger.info(f"[DRY RUN] Using SSH configuration:")
+                logger.info(f"[DRY RUN]   - Host: {target['host']}")
+                logger.info(f"[DRY RUN]   - Port: {ssh_port}")
+                logger.info(f"[DRY RUN]   - User: {ssh_user}")
+                logger.info(f"[DRY RUN]   - Key:  {key_path}")
+            
+            # Test SSH connection
+            ssh_client = ssh.create_client(
+                host=target['host'],
+                port=ssh_port,
+                username=ssh_user,
+                key_path=key_path,
+                suppress_logs=suppress_logs
+            )
+            
+            if not ssh_client:
+                if not suppress_logs:
+                    logger.error("[DRY RUN] SSH authentication test failed")
+                    logger.error("[DRY RUN] Please check:")
+                    logger.error("[DRY RUN]   - SSH key exists and has correct permissions")
+                    logger.error("[DRY RUN]   - Target host is reachable")
+                    logger.error("[DRY RUN]   - SSH credentials are correct")
+                return False
+                
+            # Test router access permissions
+            if not router_info.validate_router_access(ssh_client):
+                if not suppress_logs:
+                    logger.error("[DRY RUN] Router access validation failed")
+                    logger.error("[DRY RUN] Please check that the SSH user has required permissions:")
+                    logger.error("[DRY RUN]   - Read access to system resources")
+                    logger.error("[DRY RUN]   - Access to file system")
+                    logger.error("[DRY RUN]   - Permission to create backups")
+                ssh_client.close()
+                return False
+                
+            if not suppress_logs:
+                logger.info("[DRY RUN] SSH authentication test successful")
+                logger.info("[DRY RUN] Router access validation successful")
+                logger.info(f"[DRY RUN] Would backup target: {target_name}")
+            ssh_client.close()
+            return True
+
+        # Create SSH client for actual backup
         ssh_client = ssh.create_client(
             host=target['host'],
-            port=target.get('port', 22),
+            port=ssh_port,
             username=ssh_user,
             key_path=key_path,
             suppress_logs=suppress_logs
@@ -476,9 +535,10 @@ def main() -> None:
                         backup_password=global_config['backup_password'],
                         notifier=notifier,
                         backup_path=backup_path,
+                        config_dir=args.config_dir,
                         dry_run=args.dry_run,
                         config=global_config,
-                        suppress_logs=True
+                        suppress_logs=args.progress_bar
                     )
                     futures.append((target, future))
 
@@ -488,17 +548,20 @@ def main() -> None:
                             success_count += 1
                         else:
                             failure_count += 1
-                            failed_targets.append(target.get('name', target.get('host', 'Unknown')))
+                            target_name = target.get('name', target.get('host', 'Unknown'))
+                            failed_targets.append(target_name)
+                            if not args.progress_bar:
+                                logger.error(f"Backup failed for target: {target_name}")
                         if pbar:
                             pbar.update(1)
                     except Exception as e:
                         failure_count += 1
-                        failed_targets.append(target.get('name', target.get('host', 'Unknown')))
+                        target_name = target.get('name', target.get('host', 'Unknown'))
+                        failed_targets.append(target_name)
                         if pbar:
                             pbar.update(1)
                         if not args.progress_bar:
-                            logger.error(f"Backup failed: {str(e)}")
-
+                            logger.error(f"Backup failed for target {target_name}: {str(e)}")
         except KeyboardInterrupt:
             logger.error("Backup operation interrupted by user")
             sys.exit(1)
@@ -528,9 +591,10 @@ def main() -> None:
                     backup_password=global_config['backup_password'],
                     notifier=notifier,
                     backup_path=backup_path,
+                    config_dir=args.config_dir,
                     dry_run=args.dry_run,
                     config=global_config,
-                    suppress_logs=True
+                    suppress_logs=args.progress_bar
                 ):
                     success_count += 1
                 else:
