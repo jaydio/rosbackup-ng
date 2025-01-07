@@ -69,15 +69,16 @@ class ComposeStyleHandler:
             elapsed = self._get_elapsed_time(target)
             
             # Determine status color and symbol
-            if status == "Finished":
-                color = Fore.GREEN
-                symbol = "✔"
-            elif status == "Failed":
+            if status == "Failed":
                 color = Fore.RED
                 symbol = "✘"
+                status = "ERROR"  # Show ERROR instead of Failed
+            elif status == "Finished":
+                color = Fore.GREEN
+                symbol = "✔"
             else:
                 color = Fore.BLUE
-                symbol = "✔"
+                symbol = "⋯"  # Use dots for in-progress states
                 
             # Format the line with proper spacing
             line = f"\t{color}{symbol} {target:<20} {status:<15} {elapsed:>10}{Style.RESET_ALL}"

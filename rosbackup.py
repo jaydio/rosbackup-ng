@@ -651,11 +651,13 @@ def main() -> None:
 
     if pbar:
         pbar.close()
-        print()  # Add newline after progress bar
-        if failed_targets:
-            print("Failed backups:")
-            for target in failed_targets:
-                print(f"  - {target}")
+        # Only add newline for progress bar mode
+        if args.progress_bar:
+            print()  # Add newline after progress bar
+            if failed_targets:
+                print("Failed backups:")
+                for target in failed_targets:
+                    print(f"  - {target}")
     else:
         pass
 
