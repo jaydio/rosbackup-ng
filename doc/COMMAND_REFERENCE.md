@@ -18,8 +18,10 @@ The main backup utility for RouterOS devices.
 | `-p` | `--no-parallel` | False | No | Disable parallel execution |
 | `-m` | `--max-parallel` | None | No | Override maximum parallel backups |
 | `-t` | `--target` | None | No | Run backup on specific target only |
-| `-b` | `--progress-bar` | False | No | Show progress bar during parallel execution (disables scrolling output) |
-| `-x` | `--compose-style` | False | No | Show Docker Compose style output instead of log messages |
+| `-b` | `--progress-bar` | False | No | Show progress bar during parallel execution (disables scrolling output) ¹ |
+| `-x` | `--compose-style` | False | No | Show Docker Compose style output instead of log messages ¹ |
+
+¹ The `-b` and `-x` options are mutually exclusive and cannot be used together.
 
 ## bootstrap_router.py
 

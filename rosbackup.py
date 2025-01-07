@@ -55,10 +55,13 @@ def parse_arguments() -> argparse.Namespace:
                        help="Override maximum parallel backups")
     parser.add_argument("-t", "--target",
                        help="Run backup on specific target only")
-    parser.add_argument("-b", "--progress-bar", action="store_true",
-                       help="Show progress bar during parallel execution (disables scrolling output)")
-    parser.add_argument("-x", "--compose-style", action="store_true",
-                       help="Show Docker Compose style output instead of log messages")
+
+    # Output style group (mutually exclusive)
+    output_style = parser.add_mutually_exclusive_group()
+    output_style.add_argument("-b", "--progress-bar", action="store_true",
+                          help="Show progress bar during parallel execution (disables scrolling output)")
+    output_style.add_argument("-x", "--compose-style", action="store_true",
+                          help="Show Docker Compose style output instead of log messages")
 
     return parser.parse_args()
 
