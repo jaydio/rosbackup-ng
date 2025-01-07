@@ -643,7 +643,7 @@ def backup_parallel(targets: Dict[str, TargetConfig], config: BackupConfig,
 def backup_router(target: TargetConfig, config: BackupConfig,
                  backup_password: str, backup_path: str,
                  dry_run: bool = False,
-                 progress_callback: Optional[Callable[[str, str, Optional[int]], None]] = None) -> bool:
+                 progress_callback: Optional[Callable[[str, str], None]] = None) -> bool:
     """
     Perform backup of a single router.
 
@@ -669,7 +669,7 @@ def backup_router(target: TargetConfig, config: BackupConfig,
 
         # Update progress
         if progress_callback:
-            progress_callback(target_name, "Starting", None)
+            progress_callback(target_name, "Starting")
 
         # Create SSH client
         ssh_client = ssh_manager.get_client(
@@ -684,19 +684,19 @@ def backup_router(target: TargetConfig, config: BackupConfig,
 
         if not ssh_client:
             if progress_callback:
-                progress_callback(target_name, "Failed", None)
+                progress_callback(target_name, "Failed")
             return False
 
         try:
             # Update progress
             if progress_callback:
-                progress_callback(target_name, "Running", None)
+                progress_callback(target_name, "Running")
 
             # Get router info
             router_info = router_info_manager.get_router_info(ssh_client)
             if not router_info:
                 if progress_callback:
-                    progress_callback(target_name, "Failed", None)
+                    progress_callback(target_name, "Failed")
                 return False
 
             # Create backup directory
@@ -709,7 +709,7 @@ def backup_router(target: TargetConfig, config: BackupConfig,
             # Perform binary backup if enabled
             if target.get('enable_binary_backup', True):
                 if progress_callback:
-                    progress_callback(target_name, "Downloading", None)
+                    progress_callback(target_name, "Downloading")
                 success, backup_path = backup_manager.perform_binary_backup(
                     ssh_client,
                     router_info,
@@ -722,17 +722,15 @@ def backup_router(target: TargetConfig, config: BackupConfig,
                 )
                 if not success:
                     if progress_callback:
-                        progress_callback(target_name, "Failed", None)
+                        progress_callback(target_name, "Failed")
                     return False
                 
-                # Get backup file size
-                if backup_path and progress_callback:
-                    file_size = backup_path.stat().st_size
-                    progress_callback(target_name, "Finished", file_size)
+                if progress_callback:
+                    progress_callback(target_name, "Finished")
                 
             else:
                 if progress_callback:
-                    progress_callback(target_name, "Finished", None)
+                    progress_callback(target_name, "Finished")
 
             return True
 
@@ -742,5 +740,5 @@ def backup_router(target: TargetConfig, config: BackupConfig,
     except Exception as e:
         logger.error(f"Backup failed: {str(e)}")
         if progress_callback:
-            progress_callback(target_name, "Failed", None)
+            progress_callback(target_name, "Failed")
         return False

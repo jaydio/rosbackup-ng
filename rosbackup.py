@@ -528,9 +528,9 @@ def main() -> None:
 
     # Create progress bar or compose style handler if enabled
     if args.compose_style:
-        progress_handler = ComposeStyleHandler([t['name'] for t in targets_data])
-        def progress_callback(target: str, status: str, file_size: Optional[int] = None):
-            progress_handler.update(target, status, file_size)
+        progress_handler = ComposeStyleHandler([t['name'] for t in targets_data], backup_path)
+        def progress_callback(target: str, status: str):
+            progress_handler.update(target, status)
     elif args.progress_bar:
         progress_handler = ShellPbarHandler(
             total=len(targets_data),
@@ -540,7 +540,7 @@ def main() -> None:
             ncols=100,
             bar_format='{desc:<20} {percentage:3.0f}%|{bar:40}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
         )
-        def progress_callback(target: str, status: str, file_size: Optional[int] = None):
+        def progress_callback(target: str, status: str):
             if status == "Failed":
                 progress_handler.error()
             elif status == "Finished":

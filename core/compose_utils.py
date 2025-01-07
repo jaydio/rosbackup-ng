@@ -9,28 +9,28 @@ import time
 import threading
 from datetime import datetime
 from typing import Dict, List, Optional
-from colorama import Fore, Style
 from pathlib import Path
+from colorama import Fore, Style
 
 class ComposeStyleHandler:
     """Handler for Docker Compose style output."""
     
-    def __init__(self, targets: List[str], position: int = 0):
+    def __init__(self, targets: List[str], backup_dir: Optional[Path] = None):
         """
         Initialize the handler.
         
         Args:
             targets: List of target names
-            position: Starting position for output
+            backup_dir: Optional path to backup directory for size calculation
         """
         self.targets = targets
-        self.position = position
+        self.backup_dir = backup_dir
+        self.position = 0
         self.total_targets = len(targets)
         self.process_start_time = time.time()
         self.start_times: Dict[str, float] = {}
         self.end_times: Dict[str, float] = {}
         self.status: Dict[str, str] = {}
-        self.file_sizes: Dict[str, int] = {}  # Track backup file sizes
         self.completed = 0
         self.failed = 0
         self.last_update = time.time()
@@ -46,7 +46,6 @@ class ComposeStyleHandler:
             self.status[target] = "Waiting"
             self.start_times[target] = 0
             self.end_times[target] = 0
-            self.file_sizes[target] = 0
             
         # Clear screen and print initial header
         print("\033[2J\033[H", end="")  # Clear screen and move cursor to top
@@ -73,6 +72,20 @@ class ComposeStyleHandler:
             size /= 1024
         return f"{size:.1f}TB"
             
+    def _calculate_total_size(self) -> int:
+        """Calculate total size of all backup files."""
+        if not self.backup_dir:
+            return 0
+            
+        total_size = 0
+        for target in self.targets:
+            target_dir = self.backup_dir / target
+            if target_dir.exists():
+                for file in target_dir.glob('*.*'):
+                    if file.suffix in ['.backup', '.rsc']:
+                        total_size += file.stat().st_size
+        return total_size
+            
     def _print_output(self):
         """Print the current status."""
         # Move cursor to top
@@ -88,32 +101,32 @@ class ComposeStyleHandler:
             
             # Determine status color and symbol
             if status == "Failed":
-                color = Fore.RED
+                symbol_color = Fore.RED
+                status_color = Fore.RED + Style.BRIGHT
                 symbol = "✘"
-                status_text = f"{Style.BRIGHT}FAILED{Style.NORMAL}"
             elif status == "Finished":
-                color = Fore.GREEN
+                symbol_color = Fore.GREEN
+                status_color = Fore.GREEN
                 symbol = "✔"
-                status_text = status
             else:
-                color = Fore.CYAN if status == "Starting" else \
-                       Fore.BLUE if status == "Running" else \
-                       Fore.MAGENTA if status == "Downloading" else \
-                       Fore.YELLOW
                 symbol = self.spinner_frames[self.spinner_idx]
-                status_text = status
+                if status == "Starting":
+                    symbol_color = status_color = Fore.CYAN
+                elif status == "Running":
+                    symbol_color = status_color = Fore.BLUE
+                elif status == "Downloading":
+                    symbol_color = status_color = Fore.MAGENTA
+                else:  # Waiting
+                    symbol_color = status_color = Fore.YELLOW
                 
-            # Format size info if available
-            size_info = f" [{self._format_size(self.file_sizes[target])}]" if self.file_sizes[target] > 0 else ""
-            
-            # Format the line with proper spacing and white text
-            line = f"    {color}{symbol}{Style.RESET_ALL} {Fore.WHITE}{target:<20} {status_text:<15}{size_info:<10} {elapsed:>10}{Style.RESET_ALL}"
+            # Format the line with colored status
+            line = f"    {symbol_color}{symbol}{Style.RESET_ALL} {target:<20} {status_color}{status:<15}{Style.RESET_ALL} {elapsed:>10}"
             print(line)
             
         # Print summary statistics
         if self.done:
             total_elapsed = time.time() - self.process_start_time
-            total_size = sum(self.file_sizes.values())
+            total_size = self._calculate_total_size()
             print(f"\n{Style.BRIGHT}Summary:{Style.NORMAL}")
             print(f"    Total time: {total_elapsed:.1f}s")
             print(f"    Total size: {self._format_size(total_size)}")
@@ -131,14 +144,13 @@ class ComposeStyleHandler:
             elapsed = time.time() - self.start_times[target]
         return f"{elapsed:.1f}s"
             
-    def update(self, target: str, status: str, file_size: Optional[int] = None):
+    def update(self, target: str, status: str):
         """
         Update the status of a target.
         
         Args:
             target: Target name
             status: New status (Starting/Running/Downloading/Finished/Failed)
-            file_size: Optional file size in bytes
         """
         if target not in self.status:
             return
@@ -147,10 +159,6 @@ class ComposeStyleHandler:
             # Initialize start time if not set
             if self.start_times[target] == 0 and status != "Waiting":
                 self.start_times[target] = time.time()
-                
-            # Update file size if provided
-            if file_size is not None:
-                self.file_sizes[target] = file_size
                 
             # Don't overwrite terminal states
             if self.status[target] not in ["Finished", "Failed"]:
