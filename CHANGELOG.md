@@ -4,6 +4,36 @@ All notable changes to rosbackup-ng.
 
 ## [Unreleased]
 
+## [0.2.1] - 2025-01-07
+
+### Added
+- Comprehensive type hints across all core modules:
+  * Added return type hints for all methods
+  * Added parameter type hints for all functions
+  * Added proper typing for logging records
+- Detailed docstrings with Args and Returns sections:
+  * Added comprehensive function documentation
+  * Improved error handling documentation
+  * Added class-level documentation
+- Message counter in log output for each target (e.g., [ROUTER #1])
+- Random color assignment for targets with no duplicate colors
+- Excluded white and green colors from target name coloring
+
+### Changed
+- Improved RouterInfo organization:
+  * Split into logical sub-categories (SystemIdentityInfo, HardwareInfo, etc.)
+  * Added detailed field descriptions
+  * Better organization of network-related fields
+- Enhanced logging formatters:
+  * Improved BaseFormatter documentation and typing
+  * Enhanced ColoredFormatter with better type safety
+  * Fixed date format consistency
+- Code cleanup:
+  * Standardized docstring format
+  * Improved type safety across modules
+  * Better error handling documentation
+- Improved log message format to use a cleaner, Kubernetes-inspired style
+
 ## [0.2.0] - 2025-01-06
 
 ### Added
