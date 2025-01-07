@@ -17,7 +17,7 @@ A powerful and flexible backup solution for MikroTik RouterOS devices. This tool
   - Parallel backup execution
   - Backup encryption
   - Configurable retention periods
-  - Progress bar visualization
+  - Compose-style visualization
   - Detailed logging
 
 - **Security Features**
@@ -29,8 +29,7 @@ A powerful and flexible backup solution for MikroTik RouterOS devices. This tool
 - **Monitoring & Notifications**
   - Email notifications for backup status
   - Detailed logging with multiple levels
-  - Progress tracking with visual feedback
-
+  - Real-time progress tracking
 
 ## Documentation
 
@@ -205,29 +204,41 @@ targets:
 ## Usage
 
 ### Basic Usage
+
 ```bash
-./rosbackup.py
-```
-```
-01-05-2025 23:43:56 [INFO] [SYSTEM] Found 5 enabled target(s)
-01-05-2025 23:43:56 [INFO] [SYSTEM] Running parallel backup with 5 workers
-01-05-2025 23:43:59 [INFO] [CITY-ROUTER-32] Binary backup file MYR4_7.16.2_x86_64_01052025-234357.backup exists on the router.
-01-05-2025 23:44:00 [INFO] [CITY-ROUTER-32] Downloaded MYR4_7.16.2_x86_64_01052025-234357.backup
-01-05-2025 23:44:00 [INFO] [SPACE-ROUTER-06] Binary backup file MYR3_7.16.2_x86_64_01052025-234358.backup exists on the router.
-01-05-2025 23:44:00 [INFO] [CITY-ROUTER-32] Plaintext backup saved as MYR4_7.16.2_x86_64_01052025-234357.rsc
-01-05-2025 23:44:00 [INFO] [SPACE-ROUTER-06] Downloaded MYR3_7.16.2_x86_64_01052025-234358.backup
-01-05-2025 23:44:00 [INFO] [SPACE-ROUTER-06] Removed remote MYR3_7.16.2_x86_64_01052025-234358.backup
-...
-01-05-2025 23:44:03 [INFO] [SYSTEM] Backup completed. Success: 5, Failed: 0 [0m 7s]
+# Run backup for all enabled targets
+python3 rosbackup.py
+
+# Run backup for specific target
+python3 rosbackup.py --target ROUTER-1
+
+# Enable compose-style output
+python3 rosbackup.py --compose-style
 ```
 
-### With Progress Bar
-```bash
-./rosbackup.py -b
+### Compose-Style Output
+
+The `--compose-style` flag provides a Docker Compose-like output format that shows real-time status of each backup operation:
+
 ```
+[+] Executing backup for 3 targets ...
+
+    ⠋ ROUTER-1             Running         2.5s
+    ⠙ ROUTER-2             Waiting         0.0s
+    ✔ ROUTER-3             Finished        5.2s
+
+Summary:
+    Total time: 7.8s
+    Total size: 2.4MB
+    Success: 3 | Failed: 0 | Total: 3
 ```
-Backup Progress      100%|████████████████████████████████████████| 5/5 [00:06<00:00]
-```
+
+The compose-style output features:
+- Real-time status updates with spinner animation
+- Color-coded status indicators
+- Clear success/failure markers
+- Accurate backup size tracking
+- Total execution time and summary statistics
 
 ### Dry Run Mode
 ```bash
