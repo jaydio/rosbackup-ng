@@ -83,7 +83,10 @@ class ComposeStyleHandler:
             if target_dir.exists():
                 for file in target_dir.glob('*.*'):
                     if file.suffix in ['.backup', '.rsc']:
-                        total_size += file.stat().st_size
+                        try:
+                            total_size += file.stat().st_size
+                        except (OSError, IOError):
+                            pass  # Skip files we can't read
         return total_size
             
     def _print_output(self):

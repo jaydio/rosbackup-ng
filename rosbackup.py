@@ -528,7 +528,8 @@ def main() -> None:
 
     # Create progress bar or compose style handler if enabled
     if args.compose_style:
-        progress_handler = ComposeStyleHandler([t['name'] for t in targets_data], backup_path)
+        backup_dir = Path(global_config['backup_path'])
+        progress_handler = ComposeStyleHandler([t['name'] for t in targets_data], backup_dir)
         def progress_callback(target: str, status: str):
             progress_handler.update(target, status)
     elif args.progress_bar:
