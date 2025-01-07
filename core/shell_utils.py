@@ -17,6 +17,7 @@ from typing import Optional, List, Any, Dict
 from colorama import Fore, Style, init as colorama_init
 from tqdm import tqdm
 import pathlib
+import threading
 
 def supports_color():
     """Check if the terminal supports color output."""
@@ -239,6 +240,23 @@ class ShellPbarHandler:
         self.print_count = 0
         self.backup_dir = None  # Will be set by main script
         self.timestamp = datetime.datetime.now().strftime("%m%d%Y")
+        self.lock = threading.Lock()
+        self.done = False
+        self.ticker = None
+        self._start_ticker()
+        self._print()  # Print initial bar
+
+    def _start_ticker(self):
+        """Start the ticker thread for screen updates."""
+        def ticker():
+            while not self.done:
+                with self.lock:
+                    self._print()
+                time.sleep(0.1)  # Update every 100ms
+
+        self.ticker = threading.Thread(target=ticker)
+        self.ticker.daemon = True
+        self.ticker.start()
 
     def _format_size(self, size: int) -> str:
         """Format file size in human readable format."""
@@ -263,14 +281,16 @@ class ShellPbarHandler:
 
     def advance(self):
         """Advance progress by one step."""
-        self.n += 1
-        self._print()
+        with self.lock:
+            self.n += 1
+            self._print()
 
     def error(self):
         """Record an error."""
-        self.n += 1
-        self.errors += 1
-        self._print()
+        with self.lock:
+            self.n += 1
+            self.errors += 1
+            self._print()
 
     def _print(self):
         """Print the progress bar."""
@@ -281,8 +301,8 @@ class ShellPbarHandler:
 
         # Calculate progress
         pct = self.n / float(self.total)
-        filled_len = int(self.ncols * pct)
-        bar = "█" * filled_len + "-" * (self.ncols - filled_len)
+        filled_len = int(40 * pct)  # Use fixed width for bar
+        bar = "█" * filled_len + "-" * (40 - filled_len)
 
         # Calculate time estimates
         elapsed = time.time() - self.start_time
@@ -301,22 +321,18 @@ class ShellPbarHandler:
         total_fmt = str(self.total)
 
         # Build progress line
-        line = self.bar_format.format(
-            desc=self.desc,
-            percentage=pct * 100,
-            bar=bar,
-            n_fmt=n_fmt,
-            total_fmt=total_fmt,
-            elapsed=elapsed_str,
-            remaining=remaining_str
-        )
+        line = f"{self.desc:<20} {pct*100:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed_str}<{remaining_str}]"
 
         # Print progress
-        print(line)
+        print(line, flush=True)
         self.print_count += 1
 
     def close(self):
         """Close the progress bar and print summary."""
+        self.done = True
+        if self.ticker:
+            self.ticker.join(timeout=1.0)
+
         if not self.leave:
             if self.print_count > 0:
                 sys.stdout.write("\033[1A")
