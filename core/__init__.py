@@ -10,6 +10,7 @@ from .router_utils import RouterInfoManager
 from .notification_utils import NotificationManager
 from .logging_utils import LogManager
 from .shell_utils import ColoredFormatter, ShellPbarHandler
+from .compose_utils import ComposeStyleHandler
 
 __all__ = [
     'BackupManager',
@@ -18,5 +19,6 @@ __all__ = [
     'NotificationManager',
     'LogManager',
     'ColoredFormatter',
-    'ShellPbarHandler'
+    'ShellPbarHandler',
+    'ComposeStyleHandler'
 ]

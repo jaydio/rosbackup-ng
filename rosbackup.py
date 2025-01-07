@@ -11,6 +11,7 @@ import concurrent.futures
 import logging
 import os
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, TypedDict, Any
@@ -21,17 +22,14 @@ from zoneinfo import ZoneInfo
 from tzlocal import get_localzone
 
 from core import (
-    BackupManager,
-    SSHManager,
-    RouterInfoManager,
     NotificationManager,
     LogManager,
     ColoredFormatter,
-    ShellPbarHandler
+    ShellPbarHandler,
+    ComposeStyleHandler
 )
 from core.backup_utils import BackupManager
 from core.logging_utils import LogManager
-from core.notification_utils import NotificationManager
 from core.router_utils import RouterInfoManager
 from core.shell_utils import ColoredFormatter, ShellPbarHandler
 from core.ssh_utils import SSHManager
@@ -59,6 +57,8 @@ def parse_arguments() -> argparse.Namespace:
                        help="Run backup on specific target only")
     parser.add_argument("-b", "--progress-bar", action="store_true",
                        help="Show progress bar during parallel execution (disables scrolling output)")
+    parser.add_argument("-x", "--compose-style", action="store_true",
+                       help="Show Docker Compose style output instead of log messages")
 
     return parser.parse_args()
 
@@ -150,7 +150,8 @@ def backup_target(
     config_dir: str,
     dry_run: bool = False,
     config: Optional[GlobalConfig] = None,
-    suppress_logs: bool = False
+    suppress_logs: bool = False,
+    compose_handler: Optional[ComposeStyleHandler] = None
 ) -> bool:
     """
     Backup a single target's configuration.
@@ -165,6 +166,7 @@ def backup_target(
         dry_run: If True, simulate operations
         config: Optional global configuration
         suppress_logs: If True, suppress log messages (used with progress bar)
+        compose_handler: Optional ComposeStyleHandler for Docker Compose style output
 
     Returns:
         bool: True if backup successful, False otherwise
@@ -180,6 +182,9 @@ def backup_target(
     logger = LogManager().get_logger('BACKUP', target_name)
 
     try:
+        if compose_handler:
+            compose_handler.update(target_name, "Starting")
+            
         # Initialize managers
         ssh = SSHManager(ssh_args, target_name)
         router_info = RouterInfoManager(ssh, target_name)
@@ -271,7 +276,12 @@ def backup_target(
                 logger.error("Failed to establish SSH connection")
             return False
 
+        if compose_handler:
+            compose_handler.update(target_name, "Connecting")
+            
         # Get router information
+        if compose_handler:
+            compose_handler.update(target_name, "Getting Info")
         router_info_dict = router_info.get_router_info(ssh_client)
         if not router_info_dict:
             if not suppress_logs:
@@ -291,6 +301,9 @@ def backup_target(
                 logger.error("Failed to save router info file")
             return False
 
+        if compose_handler:
+            compose_handler.update(target_name, "Creating Backup")
+            
         # Perform binary backup if enabled (default: True)
         binary_success = True
         if target.get('enable_binary_backup', True):
@@ -326,19 +339,32 @@ def backup_target(
                     logger.error("Plaintext backup failed")
                 return False
 
+        if compose_handler:
+            compose_handler.update(target_name, "Downloading")
+            
         # Both backups succeeded
         if binary_success and plaintext_success:
+            if compose_handler:
+                compose_handler.update(target_name, "Downloading")
+            if not suppress_logs:
+                logger.info("Backup completed successfully")
             if notifier.enabled and notifier.notify_on_success:
                 notifier.send_success_notification(target_name)
+            if compose_handler:
+                compose_handler.update(target_name, "Finished")
             return True
         else:
             if not suppress_logs:
                 logger.error("One or more backup operations failed")
             if notifier.enabled and notifier.notify_on_failed:
                 notifier.send_failure_notification(target_name)
+            if compose_handler:
+                compose_handler.update(target_name, "Failed")
             return False
 
     except Exception as e:
+        if compose_handler:
+            compose_handler.update(target_name, "Failed")
         if not suppress_logs:
             logger.error(f"Backup failed: {str(e)}")
         if notifier.enabled and notifier.notify_on_failed:
@@ -381,7 +407,7 @@ def main() -> None:
 
     # Set up logging with correct timezone
     log_manager = LogManager()
-    if args.progress_bar:
+    if args.progress_bar or args.compose_style:
         log_manager.setup(log_level='ERROR')
     else:
         log_manager.setup(log_level=args.log_level, log_file=args.log_file, use_colors=not args.no_color)
@@ -400,20 +426,20 @@ def main() -> None:
     # Apply CLI overrides for parallel execution settings
     if args.no_parallel:
         global_config['parallel_backups'] = False
-        if not args.progress_bar:
+        if not args.progress_bar and not args.compose_style:
             logger.info("Parallel execution disabled via CLI")
     if args.max_parallel is not None:
         if args.max_parallel < 1:
             logger.error("max-parallel must be at least 1")
             sys.exit(1)
         global_config['max_parallel'] = args.max_parallel
-        if not args.progress_bar:
+        if not args.progress_bar and not args.compose_style:
             logger.info(f"Maximum parallel backups set to {args.max_parallel} via CLI")
     
     # Handle timezone
     if 'timezone' in global_config_data:
         system_tz = get_system_timezone()
-        if not args.progress_bar:
+        if not args.progress_bar and not args.compose_style:
             logger.info(f"Using timezone: {global_config_data['timezone']}")
         global_config['timezone'] = global_config_data['timezone']
         # Set timezone for logging
@@ -480,15 +506,15 @@ def main() -> None:
         if not targets_data:
             logger.error(f"Target not found: {args.target}")
             sys.exit(1)
-        if not args.progress_bar:
+        if not args.progress_bar and not args.compose_style:
             logger.info(f"Running backup for target: {args.target}")
 
     # Filter enabled targets
     targets_data = [t for t in targets_data if t.get('enabled', True)]
-    if not args.progress_bar:
+    if not args.progress_bar and not args.compose_style:
         logger.info(f"Found {len(targets_data)} enabled target(s)")
 
-    # Initialize progress bar if requested
+    # Create progress bar or compose style handler if enabled
     if args.progress_bar:
         pbar = ShellPbarHandler(
             total=len(targets_data),
@@ -498,6 +524,8 @@ def main() -> None:
             ncols=100,
             bar_format='{desc:<20} {percentage:3.0f}%|{bar:40}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
         )
+    elif args.compose_style:
+        pbar = ComposeStyleHandler([t['name'] for t in targets_data])
     else:
         pbar = None
 
@@ -508,7 +536,7 @@ def main() -> None:
 
     if global_config['parallel_backups'] and len(targets_data) > 1:
         max_workers = min(global_config['max_parallel'], len(targets_data))
-        if not args.progress_bar:
+        if not args.progress_bar and not args.compose_style:
             logger.info(f"Running parallel backup with {max_workers} workers")
 
         try:
@@ -538,7 +566,8 @@ def main() -> None:
                         config_dir=args.config_dir,
                         dry_run=args.dry_run,
                         config=global_config,
-                        suppress_logs=args.progress_bar
+                        suppress_logs=args.progress_bar or args.compose_style,
+                        compose_handler=pbar if args.compose_style else None
                     )
                     futures.append((target, future))
 
@@ -550,24 +579,28 @@ def main() -> None:
                             failure_count += 1
                             target_name = target.get('name', target.get('host', 'Unknown'))
                             failed_targets.append(target_name)
-                            if not args.progress_bar:
+                            if not args.progress_bar and not args.compose_style:
                                 logger.error(f"Backup failed for target: {target_name}")
                         if pbar:
-                            pbar.update(1)
+                            if args.progress_bar:
+                                pbar.update(1)
+                            elif args.compose_style:
+                                pbar.update(target['name'], "Finished" if success_count > 0 else "Failed")
                     except Exception as e:
                         failure_count += 1
                         target_name = target.get('name', target.get('host', 'Unknown'))
                         failed_targets.append(target_name)
                         if pbar:
-                            pbar.update(1)
-                        if not args.progress_bar:
+                            if args.compose_style:
+                                pbar.update(target['name'], "Failed")
+                        if not args.progress_bar and not args.compose_style:
                             logger.error(f"Backup failed for target {target_name}: {str(e)}")
         except KeyboardInterrupt:
             logger.error("Backup operation interrupted by user")
             sys.exit(1)
     else:
         # Sequential backup
-        if not args.progress_bar:
+        if not args.progress_bar and not args.compose_style:
             logger.info("Running sequential backup")
         
         for target in targets_data:
@@ -594,20 +627,23 @@ def main() -> None:
                     config_dir=args.config_dir,
                     dry_run=args.dry_run,
                     config=global_config,
-                    suppress_logs=args.progress_bar
+                    suppress_logs=args.progress_bar or args.compose_style,
+                    compose_handler=pbar if args.compose_style else None
                 ):
                     success_count += 1
                 else:
                     failure_count += 1
                     failed_targets.append(target.get('name', target.get('host', 'Unknown')))
                 if pbar:
-                    pbar.update(1)
+                    if args.compose_style:
+                        pbar.update(target['name'], "Finished" if success_count > 0 else "Failed")
             except Exception as e:
                 failure_count += 1
                 failed_targets.append(target.get('name', target.get('host', 'Unknown')))
                 if pbar:
-                    pbar.update(1)
-                if not args.progress_bar:
+                    if args.compose_style:
+                        pbar.update(target['name'], "Failed")
+                if not args.progress_bar and not args.compose_style:
                     logger.error(f"Backup failed: {str(e)}")
 
     if pbar:

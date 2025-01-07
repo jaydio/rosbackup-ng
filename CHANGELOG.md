@@ -1,11 +1,24 @@
 # Changelog
 
-All notable changes to rosbackup-ng.
-
 ## [Unreleased]
 
-### Changed
+### Added
+- Added Docker Compose style output option (-d/--compose-style) for a more detailed view of backup progress
+- Added -m argument for a more detailed view of backup progress
+- Added -x argument for a more detailed view of backup progress
 - Improved backup creation message to clearly indicate when a new backup file is created on the router
+
+## [0.3.0] - 2025-01-07
+
+### Added
+- Added CLI option for Docker Compose style output with improved state transitions and visual feedback
+- Added "Downloading" state to provide better visibility of backup progress
+- Improved status handling to prevent state conflicts and ensure proper completion
+
+### Fixed
+- Fixed issue where the last router would hang in "Creating Backup" status
+- Improved status update synchronization in parallel backup operations
+- Enhanced screen updates to reduce flickering and provide smoother output
 
 ## [0.2.2] - 2025-01-07
 
