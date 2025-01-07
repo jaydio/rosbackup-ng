@@ -25,7 +25,9 @@ class ComposeStyleHandler:
         self.targets = targets
         self.position = position
         self.total_targets = len(targets)
+        self.process_start_time = time.time()
         self.start_times: Dict[str, float] = {}
+        self.end_times: Dict[str, float] = {}  # Track when targets finish
         self.status: Dict[str, str] = {}
         self.completed = 0
         self.last_update = time.time()
@@ -38,6 +40,7 @@ class ComposeStyleHandler:
         for target in targets:
             self.status[target] = "Waiting"
             self.start_times[target] = 0
+            self.end_times[target] = 0
             
         # Clear screen and print initial header
         print("\033[2J\033[H", end="")  # Clear screen and move cursor to top
@@ -61,7 +64,7 @@ class ComposeStyleHandler:
         sys.stdout.write("\033[H")
         
         # Print header
-        print(f"[+] Running {self.total_targets}/{self.total_targets}")
+        print(f"[+] Executing backup for {self.total_targets} targets ...\n")
         
         # Print each target
         for target in self.targets:
@@ -72,7 +75,7 @@ class ComposeStyleHandler:
             if status == "Failed":
                 color = Fore.RED
                 symbol = "✘"
-                status = "ERROR"  # Show ERROR instead of Failed
+                status = "FAILED"  # Show FAILED instead of ERROR
             elif status == "Finished":
                 color = Fore.GREEN
                 symbol = "✔"
@@ -81,16 +84,26 @@ class ComposeStyleHandler:
                 symbol = "⋯"  # Use dots for in-progress states
                 
             # Format the line with proper spacing
-            line = f"\t{color}{symbol} {target:<20} {status:<15} {elapsed:>10}{Style.RESET_ALL}"
+            line = f"    {color}{symbol} {target:<20} {status:<15} {elapsed:>10}{Style.RESET_ALL}"
             print(line)
             
+        # Print total elapsed time if done
+        if self.done:
+            total_elapsed = time.time() - self.process_start_time
+            print(f"\n    Total time elapsed: {total_elapsed:.1f}s")
+                
         sys.stdout.flush()
             
     def _get_elapsed_time(self, target: str) -> str:
         """Get elapsed time for a target."""
         if self.start_times[target] == 0:
             return "0.0s"
-        elapsed = time.time() - self.start_times[target]
+            
+        # Use end time for finished targets, current time for running ones
+        if self.end_times[target] > 0:
+            elapsed = self.end_times[target] - self.start_times[target]
+        else:
+            elapsed = time.time() - self.start_times[target]
         return f"{elapsed:.1f}s"
             
     def update(self, target: str, status: str):
@@ -112,6 +125,9 @@ class ComposeStyleHandler:
             # Don't overwrite terminal states
             if self.status[target] not in ["Finished", "Failed"]:
                 self.status[target] = status
+                # Record end time for terminal states
+                if status in ["Finished", "Failed"]:
+                    self.end_times[target] = time.time()
                 # Force immediate update for state changes
                 self._print_output()
                 
@@ -120,6 +136,11 @@ class ComposeStyleHandler:
         self.done = True
         if self.ticker:
             self.ticker.join(timeout=1.0)
-        # Move cursor past the output
-        sys.stdout.write(f"\033[{len(self.targets) + 3}B\n")
+            
+        # Print final output with total time
+        with self.lock:
+            self._print_output()
+            
+        # Move cursor past the output (header + newline + targets + blank line + total time)
+        sys.stdout.write(f"\033[{len(self.targets) + 3}B")
         sys.stdout.flush()

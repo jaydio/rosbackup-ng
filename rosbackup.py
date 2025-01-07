@@ -40,11 +40,19 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Automated RouterOS backup utility")
     parser.add_argument("-c", "--config-dir", default="config",
                        help="Directory containing configuration files")
-    parser.add_argument("-l", "--log-file",
-                       help="Override log file path")
-    parser.add_argument("-L", "--log-level",
-                       choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-                       default="INFO", help="Logging level")
+    
+    # Create a group for mutually exclusive logging and output style options
+    output_group = parser.add_mutually_exclusive_group()
+    output_group.add_argument("-l", "--log-file",
+                            help="Override log file path")
+    output_group.add_argument("-L", "--log-level",
+                            choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+                            default="INFO", help="Logging level")
+    output_group.add_argument("-b", "--progress-bar", action="store_true",
+                            help="Show progress bar during parallel execution (disables scrolling output)")
+    output_group.add_argument("-x", "--compose-style", action="store_true",
+                            help="Show Docker Compose style output instead of log messages")
+    
     parser.add_argument("-n", "--no-color", action="store_true",
                        help="Disable colored output")
     parser.add_argument("-d", "--dry-run", action="store_true",
@@ -55,13 +63,6 @@ def parse_arguments() -> argparse.Namespace:
                        help="Override maximum parallel backups")
     parser.add_argument("-t", "--target",
                        help="Run backup on specific target only")
-
-    # Output style group (mutually exclusive)
-    output_style = parser.add_mutually_exclusive_group()
-    output_style.add_argument("-b", "--progress-bar", action="store_true",
-                          help="Show progress bar during parallel execution (disables scrolling output)")
-    output_style.add_argument("-x", "--compose-style", action="store_true",
-                          help="Show Docker Compose style output instead of log messages")
 
     return parser.parse_args()
 
@@ -245,6 +246,8 @@ def backup_target(
                     logger.error("[DRY RUN]   - SSH key exists and has correct permissions")
                     logger.error("[DRY RUN]   - Target host is reachable")
                     logger.error("[DRY RUN]   - SSH credentials are correct")
+                if compose_handler:
+                    compose_handler.update(target_name, "Failed")
                 return False
                 
             # Test router access permissions
@@ -256,6 +259,8 @@ def backup_target(
                     logger.error("[DRY RUN]   - Access to file system")
                     logger.error("[DRY RUN]   - Permission to create backups")
                 ssh_client.close()
+                if compose_handler:
+                    compose_handler.update(target_name, "Failed")
                 return False
                 
             if not suppress_logs:
@@ -277,6 +282,8 @@ def backup_target(
         if not ssh_client:
             if not suppress_logs:
                 logger.error("Failed to establish SSH connection")
+            if compose_handler:
+                compose_handler.update(target_name, "Failed")
             return False
 
         if compose_handler:

@@ -6,7 +6,21 @@ _rosbackup_ng_completions()
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="--help --dry-run --config-dir --log-file --log-level --no-color --no-parallel --max-parallel --target --progress-bar"
+    opts="--help --dry-run --config-dir --log-file --log-level --no-color --no-parallel --max-parallel --target --progress-bar --compose-style"
+
+    # Check if any output style or logging option is already used
+    local has_output_style=false
+    local has_logging=false
+    for word in "${COMP_WORDS[@]}"; do
+        case "$word" in
+            --progress-bar|--compose-style)
+                has_output_style=true
+                ;;
+            --log-file|--log-level)
+                has_logging=true
+                ;;
+        esac
+    done
 
     case "${prev}" in
         --config-dir)
@@ -38,8 +52,17 @@ _rosbackup_ng_completions()
             return 0
             ;;
         *)
+            # Filter out mutually exclusive options
+            local filtered_opts="$opts"
+            if [ "$has_output_style" = true ]; then
+                # If progress bar or compose style is used, remove logging options and other output style
+                filtered_opts=$(echo "$filtered_opts" | tr ' ' '\n' | grep -v -E '^(--progress-bar|--compose-style|--log-file|--log-level)$' | tr '\n' ' ')
+            elif [ "$has_logging" = true ]; then
+                # If logging options are used, remove output style options
+                filtered_opts=$(echo "$filtered_opts" | tr ' ' '\n' | grep -v -E '^(--progress-bar|--compose-style)$' | tr '\n' ' ')
+            fi
             # Complete option names
-            COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
+            COMPREPLY=( $(compgen -W "${filtered_opts}" -- ${cur}) )
             return 0
             ;;
     esac

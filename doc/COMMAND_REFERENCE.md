@@ -11,8 +11,8 @@ The main backup utility for RouterOS devices.
 | Short | Long | Default | Required | Description |
 |-------|------|---------|----------|-------------|
 | `-c` | `--config-dir` | `config` | No | Directory containing configuration files |
-| `-l` | `--log-file` | None | No | Override log file path |
-| `-L` | `--log-level` | `INFO` | No | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) |
+| `-l` | `--log-file` | None | No | Override log file path ¹ |
+| `-L` | `--log-level` | `INFO` | No | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) ¹ |
 | `-n` | `--no-color` | False | No | Disable colored output |
 | `-d` | `--dry-run` | False | No | Simulate operations without making changes |
 | `-p` | `--no-parallel` | False | No | Disable parallel execution |
@@ -21,7 +21,7 @@ The main backup utility for RouterOS devices.
 | `-b` | `--progress-bar` | False | No | Show progress bar during parallel execution (disables scrolling output) ¹ |
 | `-x` | `--compose-style` | False | No | Show Docker Compose style output instead of log messages ¹ |
 
-¹ The `-b` and `-x` options are mutually exclusive and cannot be used together.
+¹ The `--log-file`, `--log-level`, `--progress-bar`, and `--compose-style` options are mutually exclusive and cannot be used together.
 
 ## bootstrap_router.py
 
