@@ -4,6 +4,9 @@ All notable changes to rosbackup-ng.
 
 ## [Unreleased]
 
+### Changed
+- Improved backup creation message to clearly indicate when a new backup file is created on the router
+
 ## [0.2.2] - 2025-01-07
 
 ### Fixed

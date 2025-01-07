@@ -338,7 +338,7 @@ class BackupManager:
                 self.logger.error("Backup file was not created on router")
                 return False, None
 
-            self.logger.info(f"Binary backup file {os.path.basename(remote_path)} exists on the router.")
+            self.logger.info(f"Successfully created backup file {os.path.basename(remote_path)} on router")
 
             # Download the backup file
             try:
