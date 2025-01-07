@@ -9,6 +9,11 @@
   * Fixed incremental size updates during backup
 - Enhanced compose-style output with better file handling and status updates
 - Added proper handling of binary, plaintext, and info files in size calculations
+- Added visual demo of compose-style output feature
+
+### Changed
+- Removed progress bar in favor of compose-style output
+- Improved documentation with clearer examples and visual aids
 
 ## [Unreleased]
 
@@ -59,7 +64,6 @@
 - Enhanced logging formatters:
   * Improved BaseFormatter documentation and typing
   * Enhanced ColoredFormatter with better type safety
-  * Fixed date format consistency
 - Code cleanup:
   * Standardized docstring format
   * Improved type safety across modules
@@ -69,7 +73,6 @@
 ## [0.2.0] - 2025-01-06
 
 ### Added
-- Progress bar support with ``--progress-bar`` flag showing overall backup progress
 - Parallel backup execution with configurable worker count
 - Target-specific backup support with ``--target`` option
 - Better type definitions in backup_utils.py:
@@ -87,7 +90,7 @@
   * Filesystem structure documentation
   * Feature roadmap
   * Version information and format
-- Demo GIF in README showing backup process with progress bar
+- Demo GIF in README showing backup process
 - Added .gitkeep to img directory for better repository structure
 
 ### Changed
@@ -139,7 +142,6 @@
 ### Added
 - New CLI options for controlling parallel execution (`--no-parallel`, `--max-parallel`)
 - Added ``--target`` option to run backup on specific target only
-- Progress bar support with ``--progress-bar`` flag showing overall backup progress
 - Improved logging with cleaner output and reduced duplication
 - Shell completion improvements:
   * Removed short-form parameters in favor of long-form only
@@ -156,7 +158,6 @@
 - Improved SSH configuration structure in targets.yaml to match global.yaml
 - Made SSH configuration more consistent between global and target settings
 - Unified SSH argument handling for better inheritance and overrides
-- Suppressed log messages when using progress bar
 - Updated logging format for better readability
 - Improved error handling in backup operations
 - Enhanced configuration documentation with clearer parameter descriptions
