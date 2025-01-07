@@ -540,6 +540,7 @@ def main() -> None:
             ncols=100,
             bar_format='{desc:<20} {percentage:3.0f}%|{bar:40}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
         )
+        progress_handler.backup_dir = backup_path  # Set backup directory for size calculation
         def progress_callback(target: str, status: str):
             if status == "Failed":
                 progress_handler.error()

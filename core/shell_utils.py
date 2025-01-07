@@ -11,9 +11,12 @@ import os
 import sys
 import hashlib
 import random
+import time
+import datetime
 from typing import Optional, List, Any, Dict
 from colorama import Fore, Style, init as colorama_init
 from tqdm import tqdm
+import pathlib
 
 def supports_color():
     """Check if the terminal supports color output."""
@@ -206,36 +209,131 @@ class ColoredFormatter(BaseFormatter):
 
 
 class ShellPbarHandler:
-    """Handler for shell progress bars."""
-    
+    """Shell progress bar handler."""
+
     def __init__(self, total: int, desc: str = "", position: int = 0,
-                 leave: bool = True, ncols: int = 80, bar_format: str = None) -> None:
-        """Initialize progress bar."""
+                 leave: bool = True, ncols: int = 80,
+                 bar_format: str = '{desc:<20} {percentage:3.0f}%|{bar:40}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'):
+        """
+        Initialize the progress bar handler.
+
+        Args:
+            total: Total number of items
+            desc: Description
+            position: Position of the progress bar
+            leave: Whether to leave the progress bar after completion
+            ncols: Number of columns
+            bar_format: Progress bar format string
+        """
         self.total = total
         self.desc = desc
         self.position = position
         self.leave = leave
         self.ncols = ncols
-        self.pbar = tqdm(
-            total=total,
-            desc=desc,
-            position=position,
-            leave=leave,
-            ncols=ncols,
-            mininterval=0.1,  # Update every 0.1 seconds
-            maxinterval=0.5,  # Force update at least every 0.5 seconds
-            bar_format=bar_format or '{desc:<30} {percentage:3.0f}%|{bar:20}{r_bar}'
+        self.bar_format = bar_format
+        self.n = 0
+        self.errors = 0
+        self.start_time = time.time()
+        self.last_print_n = 0
+        self.last_print_t = 0
+        self.print_count = 0
+        self.backup_dir = None  # Will be set by main script
+        self.timestamp = datetime.datetime.now().strftime("%m%d%Y")
+
+    def _format_size(self, size: int) -> str:
+        """Format file size in human readable format."""
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if size < 1024:
+                return f"{size:.1f}{unit}"
+            size /= 1024
+        return f"{size:.1f}TB"
+
+    def _calculate_total_size(self) -> int:
+        """Calculate total size of all backup files from this session."""
+        if not self.backup_dir:
+            return 0
+
+        total_size = 0
+        # Search recursively for files containing today's timestamp
+        for file in self.backup_dir.rglob(f"*{self.timestamp}*.backup"):
+            total_size += file.stat().st_size
+        for file in self.backup_dir.rglob(f"*{self.timestamp}*.rsc"):
+            total_size += file.stat().st_size
+        return total_size
+
+    def advance(self):
+        """Advance progress by one step."""
+        self.n += 1
+        self._print()
+
+    def error(self):
+        """Record an error."""
+        self.n += 1
+        self.errors += 1
+        self._print()
+
+    def _print(self):
+        """Print the progress bar."""
+        # Move cursor up if needed
+        if self.print_count > 0:
+            sys.stdout.write("\033[1A")
+            sys.stdout.write("\033[K")
+
+        # Calculate progress
+        pct = self.n / float(self.total)
+        filled_len = int(self.ncols * pct)
+        bar = "█" * filled_len + "-" * (self.ncols - filled_len)
+
+        # Calculate time estimates
+        elapsed = time.time() - self.start_time
+        rate = self.n / elapsed if elapsed > 0 else 0
+        remaining = (self.total - self.n) / rate if rate > 0 else 0
+
+        # Format times
+        elapsed_str = str(datetime.timedelta(seconds=int(elapsed)))
+        if remaining == float('inf'):
+            remaining_str = "?"
+        else:
+            remaining_str = str(datetime.timedelta(seconds=int(remaining)))
+
+        # Format counts
+        n_fmt = str(self.n)
+        total_fmt = str(self.total)
+
+        # Build progress line
+        line = self.bar_format.format(
+            desc=self.desc,
+            percentage=pct * 100,
+            bar=bar,
+            n_fmt=n_fmt,
+            total_fmt=total_fmt,
+            elapsed=elapsed_str,
+            remaining=remaining_str
         )
 
-    def update(self, n: int = 1, desc: Optional[str] = None) -> None:
-        """Update progress bar."""
-        if desc:
-            self.pbar.set_description_str(desc)
-        self.pbar.update(n)
+        # Print progress
+        print(line)
+        self.print_count += 1
 
-    def close(self) -> None:
-        """Close progress bar."""
-        self.pbar.close()
+    def close(self):
+        """Close the progress bar and print summary."""
+        if not self.leave:
+            if self.print_count > 0:
+                sys.stdout.write("\033[1A")
+                sys.stdout.write("\033[K")
+        else:
+            # Print newline
+            print()
+
+            # Print summary statistics
+            total_elapsed = time.time() - self.start_time
+            total_size = self._calculate_total_size()
+            success_count = self.n - self.errors
+
+            print(f"{Style.BRIGHT}Summary:{Style.NORMAL}")
+            print(f"    Total time: {total_elapsed:.1f}s")
+            print(f"    Total size: {self._format_size(total_size)}")
+            print(f"    Success: {Fore.GREEN}{success_count}{Style.RESET_ALL} | Failed: {Fore.RED}{self.errors}{Style.RESET_ALL} | Total: {self.total}")
 
     @classmethod
     def create_multi_bar(cls, total: int, names: List[str], position: int = 0,
