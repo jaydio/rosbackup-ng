@@ -325,7 +325,7 @@ def main() -> None:
     if args.progress_bar:
         log_manager.setup(log_level='ERROR')
     else:
-        log_manager.setup(log_level=args.log_level, log_file=args.log_file)
+        log_manager.setup(log_level=args.log_level, log_file=args.log_file, use_colors=not args.no_color)
     logger = log_manager.get_logger('SYSTEM')
 
     # Convert to GlobalConfig TypedDict

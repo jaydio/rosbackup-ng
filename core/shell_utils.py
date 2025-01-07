@@ -165,6 +165,16 @@ class ColoredFormatter(BaseFormatter):
         original_target_name = record.target_name
 
         try:
+            # Format the parts separately
+            formatted = super().format(record)
+            
+            if not self.use_color:
+                # If colors are disabled, just add the counter without colors
+                target_part = f"[{record.target_name}]"
+                counter = get_and_increment_counter(record.target_name)
+                no_color_target = f"[{record.target_name} #{counter}]"
+                return formatted.replace(target_part, no_color_target)
+            
             # Color the level name based on level
             level_color = Fore.CYAN  # Default color
             if record.levelno == logging.INFO:
@@ -179,9 +189,6 @@ class ColoredFormatter(BaseFormatter):
             # Get target color and counter
             target_color = get_target_color(record.target_name)
             counter = get_and_increment_counter(record.target_name)
-            
-            # Format the parts separately
-            formatted = super().format(record)
             
             # Find and color the target name in the formatted string, now including counter
             target_part = f"[{record.target_name}]"
