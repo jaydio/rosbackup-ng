@@ -113,7 +113,7 @@ class SSHManager:
             port: SSH port number
             username: SSH username
             key_path: Path to SSH private key
-            suppress_logs: If True, suppress log messages (used with progress bar)
+            suppress_logs: If True, suppress log messages during compose-style output
 
         Returns:
             Connected SSH client or None if connection fails

@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, TypedDict, Any
 
 import yaml
-from tqdm import tqdm
 from zoneinfo import ZoneInfo
 from tzlocal import get_localzone
 
@@ -146,7 +145,7 @@ def backup_target(
         config_dir: Directory containing configuration files
         dry_run: If True, simulate operations
         config: Optional global configuration
-        suppress_logs: If True, suppress log messages (used with progress bar)
+        suppress_logs: If True, suppress log messages during compose-style output
         compose_handler: Optional ComposeStyleHandler for Docker Compose style output
         progress_callback: Optional callback function for progress updates
 
@@ -510,14 +509,10 @@ def main() -> None:
     if not args.compose_style:
         logger.info(f"Found {len(targets_data)} enabled target(s)")
 
-    # Create progress bar or compose style handler if enabled
+    # Create compose style handler if enabled
+    compose_handler = None
     if args.compose_style:
-        progress_handler = ComposeStyleHandler([t['name'] for t in targets_data], backup_path)
-        def progress_callback(target: str, status: str):
-            progress_handler.update(target, status)
-    else:
-        progress_handler = None
-        progress_callback = None
+        compose_handler = ComposeStyleHandler([t['name'] for t in targets_data], backup_path)
 
     # Execute backups
     success_count = 0
@@ -557,8 +552,8 @@ def main() -> None:
                         dry_run=args.dry_run,
                         config=global_config,
                         suppress_logs=args.compose_style,
-                        compose_handler=progress_handler if args.compose_style else None,
-                        progress_callback=progress_callback
+                        compose_handler=compose_handler,
+                        progress_callback=None
                     )
                     futures.append((target, future))
 
@@ -572,16 +567,14 @@ def main() -> None:
                             failed_targets.append(target_name)
                             if not args.compose_style:
                                 logger.error(f"Backup failed for target: {target_name}")
-                        if progress_handler:
-                            if args.compose_style:
-                                progress_handler.update(target_name, "Finished" if success_count > 0 else "Failed")
+                        if compose_handler:
+                            compose_handler.update(target_name, "Finished" if success_count > 0 else "Failed")
                     except Exception as e:
                         failure_count += 1
                         target_name = target.get('name', target.get('host', 'Unknown'))
                         failed_targets.append(target_name)
-                        if progress_handler:
-                            if args.compose_style:
-                                progress_handler.update(target_name, "Failed")
+                        if compose_handler:
+                            compose_handler.update(target_name, "Failed")
                         if not args.compose_style:
                             logger.error(f"Backup failed for target {target_name}: {str(e)}")
         except KeyboardInterrupt:
@@ -617,27 +610,25 @@ def main() -> None:
                     dry_run=args.dry_run,
                     config=global_config,
                     suppress_logs=args.compose_style,
-                    compose_handler=progress_handler if args.compose_style else None,
-                    progress_callback=progress_callback
+                    compose_handler=compose_handler,
+                    progress_callback=None
                 ):
                     success_count += 1
                 else:
                     failure_count += 1
                     failed_targets.append(target.get('name', target.get('host', 'Unknown')))
-                if progress_handler:
-                    if args.compose_style:
-                        progress_handler.update(target['name'], "Finished" if success_count > 0 else "Failed")
+                if compose_handler:
+                    compose_handler.update(target['name'], "Finished" if success_count > 0 else "Failed")
             except Exception as e:
                 failure_count += 1
                 failed_targets.append(target.get('name', target.get('host', 'Unknown')))
-                if progress_handler:
-                    if args.compose_style:
-                        progress_handler.update(target['name'], "Failed")
+                if compose_handler:
+                    compose_handler.update(target['name'], "Failed")
                 if not args.compose_style:
                     logger.error(f"Backup failed: {str(e)}")
 
-    if progress_handler:
-        progress_handler.close()
+    if compose_handler:
+        compose_handler.close()
     else:
         pass
 

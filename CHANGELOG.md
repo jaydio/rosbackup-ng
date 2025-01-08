@@ -19,6 +19,9 @@
 
 ### Added
 - Improved backup creation message to clearly indicate when a new backup file is created on the router
+- Inconsistencies in main script output formatting and messaging
+  * Need to review and standardize log messages
+  * Ensure consistent output style between normal and compose modes
 
 ## [0.3.0] - 2025-01-07
 
