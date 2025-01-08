@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1] - 2025-01-08
+
+### Added
+- Improved backup creation message to clearly indicate when a new backup file is created on the router
+- Inconsistencies in main script output formatting and messaging
+  * Need to review and standardize log messages
+  * Ensure consistent output style between normal and compose modes
+
 ## [0.4.0] - 2025-01-08
 
 ### Added
@@ -14,14 +22,6 @@
 ### Changed
 - Removed progress bar in favor of compose-style output
 - Improved documentation with clearer examples and visual aids
-
-## [Unreleased]
-
-### Added
-- Improved backup creation message to clearly indicate when a new backup file is created on the router
-- Inconsistencies in main script output formatting and messaging
-  * Need to review and standardize log messages
-  * Ensure consistent output style between normal and compose modes
 
 ## [0.3.0] - 2025-01-07
 
