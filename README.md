@@ -233,6 +233,7 @@ Summary:
     Success: 3 | Failed: 0 | Total: 3
 ```
 
+![Compose-Style Output Demo](img/rosbackup-ng-compose-style-output-demo-0.4.0.gif)
 The compose-style output features:
 - Real-time status updates with spinner animation
 - Color-coded status indicators
