@@ -65,11 +65,11 @@ backups/
     - PPP/PPTP/L2TP/SSTP/OVPN secrets
     - IPsec pre-shared keys
     - Wireguard private keys
+    - Full ZeroTier identity
 - __<u>Does NOT include</u>__
   - Certificate store (will be added in a future version)
     - incl. certificates used by API server or IPSEC sessions (!) 
   - User database and user passwords (unsupported)
-  - ZeroTier private key (unsupported)
 
 ### System Information (.info)
 The `.info` files contain comprehensive system information including:
