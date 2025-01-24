@@ -30,6 +30,7 @@ This document outlines the planned features and improvements for future releases
 - [ ] Backup success rate tracking
 
 ### 5. Integration Features
+- [ ] Make this a PyPI package
 - [ ] Docker Image
 - [ ] REST API for remote management
 - [ ] Integration with monitoring systems
