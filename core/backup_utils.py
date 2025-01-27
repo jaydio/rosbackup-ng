@@ -41,7 +41,7 @@ class RouterInfo(TypedDict):
         total_hdd_space: Total HDD space
         write_sect_since_reboot: Write sectors since reboot
         write_sect_total: Write sectors total
-        board_name: Board name
+        board_name: Optional board name
         system_id: System ID
         time: Time
         date: Date
@@ -166,6 +166,9 @@ class BackupConfig(TypedDict):
     log_file: Optional[str]
     log_level: Optional[str]
     log_retention_days: Optional[int]
+    use_tmpfs: Optional[bool]
+    tmpfs_fallback: Optional[bool]
+    tmpfs_size: Optional[str]
 
 
 class TargetConfig(TypedDict):
@@ -187,6 +190,9 @@ class TargetConfig(TypedDict):
         enable_plaintext_backup: Enable plaintext backup creation (default: True)
         backup_password: Target-specific backup password
         backup_retention_days: Target-specific retention period (default: 90)
+        use_tmpfs: Whether to use tmpfs for backup storage
+        tmpfs_fallback: Whether to fall back to root storage if tmpfs fails
+        tmpfs_size: Optional override for tmpfs size
     """
     host: str
     port: int
@@ -201,6 +207,9 @@ class TargetConfig(TypedDict):
     enable_plaintext_backup: Optional[bool]
     backup_password: Optional[str]
     backup_retention_days: Optional[int]
+    use_tmpfs: Optional[bool]
+    tmpfs_fallback: Optional[bool]
+    tmpfs_size: Optional[str]
 
 
 class BackupManager:
@@ -259,16 +268,195 @@ class BackupManager:
         router_name = f"{router_info['identity']}_{ros_version}_{router_info['architecture_name']}"
         return f"{router_name}_{timestamp}.{extension}"
 
+    def _calculate_tmpfs_size(self, free_memory: str) -> str:
+        """Calculate appropriate tmpfs size based on free memory.
+
+        Args:
+            free_memory: Free memory string from RouterInfo (e.g., "1024.0MiB")
+
+        Returns:
+            Tmpfs size string (e.g., "50M" or "3M")
+        """
+        # Extract numeric value and convert to float
+        memory_value = float(free_memory.split('MiB')[0])
+        
+        # If free memory >= 256MiB, use 50M, otherwise use 1%
+        if memory_value >= 256.0:
+            return "50M"
+        else:
+            size = int(memory_value * 0.01)  # 1% of total memory
+            return f"{max(size, 1)}M"  # Ensure minimum 1M size
+
+    def _setup_tmpfs(self, ssh_client: paramiko.SSHClient, size: str) -> bool:
+        """Create tmpfs on the router.
+
+        Args:
+            ssh_client: Connected SSH client
+            size: Size of tmpfs (e.g., "50M")
+
+        Returns:
+            bool: True if tmpfs was created successfully
+        """
+        try:
+            # First remove any existing tmpfs
+            cleanup_cmd = "/disk/remove [find where slot=rosbackup]"
+            self.ssh_manager.execute_command(ssh_client, cleanup_cmd)
+
+            # Create new tmpfs
+            cmd = f"/disk/add type=tmpfs tmpfs-max-size={size} slot=rosbackup"
+            stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, cmd)
+            
+            # Check for RouterOS errors in both stdout and stderr
+            if exit_status != 0 or stderr or (stdout and ("failure" in stdout.lower() or "error" in stdout.lower())):
+                error_msg = stdout.strip() if stdout else stderr
+                self.logger.error(f"Failed to create tmpfs: {error_msg}")
+                return False
+
+            # Verify tmpfs is mounted by checking for M flag
+            check_cmd = "/disk print where slot=rosbackup"
+            stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, check_cmd)
+            if not stdout or "M rosbackup" not in stdout:
+                self.logger.error("Tmpfs was not mounted")
+                return False
+
+            return True
+        except Exception as e:
+            self.logger.error(f"Error setting up tmpfs: {str(e)}")
+            return False
+
+    def _cleanup_tmpfs(self, ssh_client: paramiko.SSHClient) -> bool:
+        """Remove tmpfs from the router.
+
+        Args:
+            ssh_client: Connected SSH client
+
+        Returns:
+            bool: True if tmpfs was removed successfully
+        """
+        try:
+            cmd = "/disk/remove [find where slot=rosbackup]"
+            stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, cmd)
+            if stderr or exit_status != 0:
+                self.logger.error(f"Failed to remove tmpfs: {stderr}")
+                return False
+            return True
+        except Exception as e:
+            self.logger.error(f"Error cleaning up tmpfs: {str(e)}")
+            return False
+
+    def perform_backup(
+        self,
+        ssh_client: paramiko.SSHClient,
+        router_info: RouterInfo,
+        backup_dir: Path,
+        timestamp: str,
+        keep_binary_backup: bool = False,
+        keep_plaintext_backup: bool = False,
+        backup_password: Optional[str] = None,
+        dry_run: bool = False,
+        use_tmpfs: bool = True,
+        tmpfs_fallback: bool = True,
+        tmpfs_size: Optional[str] = None
+    ) -> bool:
+        """
+        Perform backup of RouterOS device.
+
+        Args:
+            ssh_client: Connected SSH client to the router
+            router_info: Dictionary containing router information
+            backup_dir: Directory to store the backup
+            timestamp: Timestamp string (format: MMDDYYYY-HHMMSS)
+            keep_binary_backup: Whether to keep binary backup on router
+            keep_plaintext_backup: Whether to keep plaintext backup on router
+            backup_password: Optional password to encrypt backup with
+            dry_run: If True, only simulate the backup
+            use_tmpfs: Whether to use tmpfs for backup storage
+            tmpfs_fallback: Whether to fall back to root storage if tmpfs fails
+            tmpfs_size: Optional override for tmpfs size
+
+        Returns:
+            bool: True if backup was successful
+        """
+        if dry_run:
+            return True
+
+        # Track if we're using tmpfs so we can clean it up at the end
+        using_tmpfs = False
+
+        # Determine backup storage location and prepare tmpfs if needed
+        if use_tmpfs:
+            # Calculate tmpfs size if not provided
+            if not tmpfs_size:
+                tmpfs_size = self._calculate_tmpfs_size(router_info['free_memory'])
+            
+            # Try to set up tmpfs
+            if self._setup_tmpfs(ssh_client, tmpfs_size):
+                using_tmpfs = True
+                self.logger.info(f"Using tmpfs for backup storage (size: {tmpfs_size})")
+            elif not tmpfs_fallback:
+                self.logger.error("Tmpfs setup failed and fallback is disabled")
+                return False
+            else:
+                self.logger.warning("Tmpfs setup failed, falling back to root storage")
+
+        # Perform binary backup
+        binary_success, _ = self.perform_binary_backup(
+            ssh_client=ssh_client,
+            router_info=router_info,
+            backup_dir=backup_dir,
+            timestamp=timestamp,
+            keep_binary_backup=keep_binary_backup,
+            backup_password=backup_password,
+            dry_run=dry_run,
+            use_tmpfs=use_tmpfs,
+            tmpfs_fallback=tmpfs_fallback,
+            tmpfs_size=tmpfs_size
+        )
+        if not binary_success:
+            # Clean up tmpfs if it was created
+            if use_tmpfs:
+                self._cleanup_tmpfs(ssh_client)
+            return False
+
+        # Perform plaintext backup if binary backup was successful
+        plaintext_success, _ = self.perform_plaintext_backup(
+            ssh_client=ssh_client,
+            router_info=router_info,
+            backup_dir=backup_dir,
+            timestamp=timestamp,
+            keep_plaintext_backup=keep_plaintext_backup,
+            dry_run=dry_run,
+            use_tmpfs=use_tmpfs,
+            tmpfs_fallback=tmpfs_fallback,
+            tmpfs_size=tmpfs_size
+        )
+        if not plaintext_success:
+            # Clean up tmpfs if it was created
+            if use_tmpfs:
+                self._cleanup_tmpfs(ssh_client)
+            return False
+
+        # Clean up tmpfs after all operations are complete
+        if use_tmpfs:
+            if not self._cleanup_tmpfs(ssh_client):
+                self.logger.warning("Failed to clean up tmpfs")
+                # Don't fail the backup just because tmpfs cleanup failed
+
+        return True
+
     def perform_binary_backup(
         self,
         ssh_client: paramiko.SSHClient,
         router_info: RouterInfo,
-        backup_password: str,
-        encrypted: bool,
         backup_dir: Path,
         timestamp: str,
         keep_binary_backup: bool,
-        dry_run: bool = False
+        backup_password: str,
+        encrypted: bool,
+        dry_run: bool = False,
+        use_tmpfs: bool = True,
+        tmpfs_fallback: bool = True,
+        tmpfs_size: Optional[str] = None
     ) -> Tuple[bool, Optional[Path]]:
         """
         Perform binary backup of RouterOS device.
@@ -279,36 +467,48 @@ class BackupManager:
         Args:
             ssh_client: Connected SSH client to the router
             router_info: Dictionary containing router information
-            backup_password: Password for backup encryption
-            encrypted: Whether to encrypt the backup
             backup_dir: Directory to store the backup
             timestamp: Timestamp string (format: MMDDYYYY-HHMMSS)
             keep_binary_backup: Whether to keep backup file on router
+            backup_password: Password for backup encryption
+            encrypted: Whether to encrypt the backup
             dry_run: If True, only simulate the backup
+            use_tmpfs: Whether to use tmpfs for backup storage
+            tmpfs_fallback: Whether to fall back to root storage if tmpfs fails
+            tmpfs_size: Optional override for tmpfs size
 
         Returns:
             A tuple containing:
             - bool: True if backup was successful
             - Optional[Path]: Path to the backup file if successful, None otherwise
-
-        File Naming:
-            The binary backup file follows the format:
-            {identity}-{version}-{arch}-{timestamp}.backup
-            Example: MYR1-7.16.2-x86_64-01042025-164736.backup
-
-        Error Handling:
-            - Verifies backup file creation on router
-            - Checks file size after download
-            - Handles SSH and SCP errors
-            - Cleans up remote file if needed
         """
         if dry_run:
             return True, None
 
         # Generate backup file name
         backup_name = self._generate_backup_name(router_info, timestamp, 'backup')
-        remote_path = backup_name
         local_path = backup_dir / backup_name
+
+        # Determine backup storage location and prepare tmpfs if needed
+        using_tmpfs = False
+        if use_tmpfs:
+            # Calculate tmpfs size if not provided
+            if not tmpfs_size:
+                tmpfs_size = self._calculate_tmpfs_size(router_info['free_memory'])
+            
+            # Try to set up tmpfs
+            if self._setup_tmpfs(ssh_client, tmpfs_size):
+                using_tmpfs = True
+                remote_path = f"rosbackup/{backup_name}"
+                self.logger.info(f"Using tmpfs for backup storage (size: {tmpfs_size})")
+            elif not tmpfs_fallback:
+                self.logger.error("Tmpfs setup failed and fallback is disabled")
+                return False, None
+            else:
+                self.logger.warning("Tmpfs setup failed, falling back to root storage")
+                remote_path = f"/{backup_name}"
+        else:
+            remote_path = f"/{backup_name}"
 
         try:
             # Create backup command
@@ -338,25 +538,29 @@ class BackupManager:
             # Download the backup file
             try:
                 with SCPClient(ssh_client.get_transport()) as scp:
-                    scp.get(remote_path, str(local_path))
+                    scp.get(remote_path.lstrip('/'), str(local_path))
                 self.logger.info(f"Downloaded {os.path.basename(remote_path)}")
             except Exception as e:
                 self.logger.error(f"Failed to download backup file: {str(e)}")
                 return False, None
 
-            # Remove the remote backup file
-            if not keep_binary_backup:
+            # If we're keeping the backup and using tmpfs, move it to root
+            if keep_binary_backup and using_tmpfs:
+                move_cmd = f"/file/set name=\"{backup_name}\" [find name=\"{remote_path}\"]"
+                self.logger.info(f"Moving backup with command: {move_cmd}")
+                stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, move_cmd)
+                if stderr or exit_status != 0:
+                    self.logger.error(f"Failed to move backup to root: {stderr}")
+                    if stdout:
+                        self.logger.error(f"Move command output: {stdout}")
+                    return False, None
+            # Only remove if we're not keeping it
+            elif not keep_binary_backup:
                 rm_cmd = f"/file remove \"{remote_path}\""
                 stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, rm_cmd)
-                if not stderr and exit_status == 0:
-                    self.logger.info(f"Removed remote {os.path.basename(remote_path)}")
-                else:
-                    self.logger.warning(f"Failed to remove remote backup file: {stderr}")
-
-            # Verify local backup file exists and has size
-            if not local_path.exists() or local_path.stat().st_size == 0:
-                self.logger.error("Local backup file is missing or empty")
-                return False, None
+                if stderr or exit_status != 0:
+                    self.logger.error(f"Failed to remove backup file: {stderr}")
+                    return False, None
 
             return True, local_path
 
@@ -371,7 +575,10 @@ class BackupManager:
         backup_dir: Path,
         timestamp: str,
         keep_plaintext_backup: bool = False,
-        dry_run: bool = False
+        dry_run: bool = False,
+        use_tmpfs: bool = True,
+        tmpfs_fallback: bool = True,
+        tmpfs_size: Optional[str] = None
     ) -> Tuple[bool, Optional[Path]]:
         """
         Perform plaintext (export) backup of RouterOS device.
@@ -390,70 +597,107 @@ class BackupManager:
             timestamp: Timestamp string (format: MMDDYYYY-HHMMSS)
             keep_plaintext_backup: Whether to keep export on router
             dry_run: If True, only simulate the backup
+            use_tmpfs: Whether to use tmpfs for backup storage
+            tmpfs_fallback: Whether to fall back to root storage if tmpfs fails
+            tmpfs_size: Optional override for tmpfs size
 
         Returns:
             A tuple containing:
             - bool: True if backup was successful
             - Optional[Path]: Path to the backup file if successful, None otherwise
-
-        File Naming:
-            The plaintext export file follows the format:
-            {identity}_{version}_{arch}_{timestamp}.rsc
-            Example: MYR1_7.16.2_x86_64_01042025-164736.rsc
-
-        Error Handling:
-            - Verifies export command output
-            - Handles SSH connection errors
-            - Validates file writing operations
-            - Manages router-side file operations
         """
         if dry_run:
             return True, None
 
         # Generate backup file name
         backup_name = self._generate_backup_name(router_info, timestamp, 'rsc')
-        remote_path = backup_name
         local_path = backup_dir / backup_name
 
         try:
-            # Create export command
-            export_cmd = "/export terse show-sensitive file=\"{}\"".format(remote_path)
-
-            # Execute export command
-            stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, export_cmd)
-            if stderr or exit_status != 0:
-                self.logger.error(f"Error creating export: {stderr}")
-                return False, None
-
-            # Wait for export to complete and verify file
-            time.sleep(2)  # Give RouterOS time to create the file
-
-            # Use /file print to check for file existence
-            check_cmd = f"/file print where name=\"{remote_path}\""
-            stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, check_cmd)
-            if not stdout or "no such item" in stdout.lower() or exit_status != 0:
-                self.logger.error("Export file was not created on router")
-                return False, None
-
-            self.logger.info(f"Successfully created export file {os.path.basename(remote_path)} on router")
-
-            # Download the export file
-            try:
-                with SCPClient(ssh_client.get_transport()) as scp:
-                    scp.get(remote_path, str(local_path))
-                self.logger.info(f"Downloaded {os.path.basename(remote_path)}")
-            except Exception as e:
-                self.logger.error(f"Failed to download export file: {str(e)}")
-                return False, None
-
-            # Remove the remote export file
-            if not keep_plaintext_backup:
-                rm_cmd = f"/file remove \"{remote_path}\""
-                stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, rm_cmd)
-                if not stderr and exit_status == 0:
-                    self.logger.info(f"Removed remote {os.path.basename(remote_path)}")
+            if keep_plaintext_backup:
+                # Determine backup storage location and prepare tmpfs if needed
+                using_tmpfs = False
+                if use_tmpfs:
+                    # Calculate tmpfs size if not provided
+                    if not tmpfs_size:
+                        tmpfs_size = self._calculate_tmpfs_size(router_info['free_memory'])
+                    
+                    # Try to set up tmpfs
+                    if self._setup_tmpfs(ssh_client, tmpfs_size):
+                        using_tmpfs = True
+                        remote_path = f"rosbackup/{backup_name}"
+                        self.logger.info(f"Using tmpfs for backup storage (size: {tmpfs_size})")
+                    elif not tmpfs_fallback:
+                        self.logger.error("Tmpfs setup failed and fallback is disabled")
+                        return False, None
+                    else:
+                        self.logger.warning("Tmpfs setup failed, falling back to root storage")
+                        remote_path = f"/{backup_name}"
                 else:
-                    self.logger.warning(f"Failed to remove remote export file: {stderr}")
+                    remote_path = f"/{backup_name}"
+
+                # Create export file
+                export_cmd = f"/export terse show-sensitive file=\"{remote_path}\""
+                stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, export_cmd)
+                if stderr or exit_status != 0:
+                    self.logger.error(f"Error creating export: {stderr}")
+                    return False, None
+
+                # Wait for export to complete and verify file
+                time.sleep(1)  # Give RouterOS time to create the file
+
+                # Use /file print to check for file existence
+                check_cmd = f"/file print where name=\"{remote_path}\""
+                stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, check_cmd)
+                if not stdout or "no such item" in stdout.lower() or exit_status != 0:
+                    self.logger.error("Export file was not created on router")
+                    return False, None
+
+                self.logger.info(f"Successfully created export file {os.path.basename(remote_path)} on router")
+
+                # Download the export file
+                try:
+                    with SCPClient(ssh_client.get_transport()) as scp:
+                        scp.get(remote_path.lstrip('/'), str(local_path))
+                    self.logger.info(f"Downloaded {os.path.basename(remote_path)}")
+                except Exception as e:
+                    self.logger.error(f"Failed to download export file: {str(e)}")
+                    return False, None
+
+                # If we're keeping the backup and using tmpfs, move it to root
+                if keep_plaintext_backup and using_tmpfs:
+                    move_cmd = f"/file/set name=\"{backup_name}\" [find name=\"{remote_path}\"]"
+                    self.logger.info(f"Moving backup with command: {move_cmd}")
+                    stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, move_cmd)
+                    if stderr or exit_status != 0:
+                        self.logger.error(f"Failed to move backup to root: {stderr}")
+                        if stdout:
+                            self.logger.error(f"Move command output: {stdout}")
+                        return False, None
+                # Only remove if we're not keeping it
+                elif not keep_plaintext_backup:
+                    rm_cmd = f"/file remove \"{remote_path}\""
+                    stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, rm_cmd)
+                    if stderr or exit_status != 0:
+                        self.logger.error(f"Failed to remove backup file: {stderr}")
+                        return False, None
+
+            else:
+                # If we don't need to keep the backup, stream it directly
+                export_cmd = "/export terse show-sensitive"
+                stdout, stderr, exit_status = self.ssh_manager.execute_command(ssh_client, export_cmd)
+                if stderr or exit_status != 0:
+                    self.logger.error(f"Error creating export: {stderr}")
+                    return False, None
+
+                # Save stdout to file
+                try:
+                    with open(local_path, 'w') as f:
+                        f.write(stdout)
+                    self.logger.info(f"Successfully created export file {os.path.basename(local_path)}")
+                except Exception as e:
+                    self.logger.error(f"Failed to save export file: {str(e)}")
+                    return False, None
 
             # Verify local export file exists and has size
             if not local_path.exists() or local_path.stat().st_size == 0:
@@ -661,80 +905,90 @@ def backup_router(target: TargetConfig, config: BackupConfig,
     Returns:
         True if backup was successful
     """
-    target_name = target['name']
-    logger = LogManager().get_logger('BACKUP', target_name)
+    logger = LogManager().get_logger(target['host'])
+    logger.info(f"Starting backup for {target['host']}")
+
+    if progress_callback:
+        progress_callback(target['host'], "Starting")
 
     try:
         # Initialize managers
-        ssh_manager = SSHManager(config['ssh'], target_name)
+        ssh_manager = SSHManager(logger)
         router_info_manager = RouterInfoManager(ssh_manager, logger)
         backup_manager = BackupManager(ssh_manager, router_info_manager, logger)
 
-        # Update progress
-        if progress_callback:
-            progress_callback(target_name, "Starting")
-
-        # Create SSH client
-        ssh_client = ssh_manager.get_client(
-            target_name,
+        # Connect to router
+        ssh_client = ssh_manager.connect(
             target['host'],
-            target['port'],
-            target['user'],
+            target.get('port', 22),
+            target.get('user', 'rosbackup'),
             target.get('key_file'),
             target.get('known_hosts_file'),
-            target.get('add_host_key', True)
+            target.get('add_target_host_key', True)
         )
 
         if not ssh_client:
+            logger.error("Failed to connect to router")
             if progress_callback:
-                progress_callback(target_name, "Failed")
+                progress_callback(target['host'], "Failed")
             return False
 
         try:
-            # Update progress
-            if progress_callback:
-                progress_callback(target_name, "Running")
-
-            # Get router info
+            # Get router information
             router_info = router_info_manager.get_router_info(ssh_client)
             if not router_info:
+                logger.error("Failed to get router information")
                 if progress_callback:
-                    progress_callback(target_name, "Failed")
+                    progress_callback(target['host'], "Failed")
                 return False
 
-            # Create backup directory
-            backup_dir = Path(backup_path) / target_name
-            backup_dir.mkdir(parents=True, exist_ok=True)
-
-            # Get timestamp for filenames
+            # Create timestamp and backup directory
             timestamp = get_timestamp()
+            backup_dir = Path(backup_path) / router_info['identity']
+            os.makedirs(backup_dir, exist_ok=True)
 
-            # Perform binary backup if enabled
-            if target.get('enable_binary_backup', True):
-                if progress_callback:
-                    progress_callback(target_name, "Downloading")
-                success, backup_path = backup_manager.perform_binary_backup(
-                    ssh_client,
-                    router_info,
-                    backup_password,
-                    target.get('encrypted', False),
-                    backup_dir,
-                    timestamp,
-                    target.get('keep_binary_backup', False),
-                    dry_run
-                )
-                if not success:
-                    if progress_callback:
-                        progress_callback(target_name, "Failed")
-                    return False
-                
-                if progress_callback:
-                    progress_callback(target_name, "Finished")
-                
-            else:
-                if progress_callback:
-                    progress_callback(target_name, "Finished")
+            # Save router information
+            info_file_path = backup_dir / f"{router_info['identity']}_{timestamp}.info"
+            backup_manager.save_info_file(router_info, info_file_path, dry_run)
 
+            success = True
+
+            # Determine tmpfs settings
+            # First check target-specific settings, then fall back to global settings
+            use_tmpfs = target.get('use_tmpfs')
+            if use_tmpfs is None:  # Only use global if target doesn't specify
+                use_tmpfs = config.get('use_tmpfs', True)
+
+            tmpfs_fallback = target.get('tmpfs_fallback')
+            if tmpfs_fallback is None:  # Only use global if target doesn't specify
+                tmpfs_fallback = config.get('tmpfs_fallback', True)
+
+            tmpfs_size = target.get('tmpfs_size')
+            if tmpfs_size is None:  # Only use global if target doesn't specify
+                tmpfs_size = config.get('tmpfs_size')
+
+            # Perform backup
+            success = backup_manager.perform_backup(
+                ssh_client=ssh_client,
+                router_info=router_info,
+                backup_dir=backup_dir,
+                timestamp=timestamp,
+                keep_binary_backup=target.get('keep_binary_backup', False),
+                keep_plaintext_backup=target.get('keep_plaintext_backup', False),
+                backup_password=target.get('backup_password', backup_password),
+                dry_run=dry_run,
+                use_tmpfs=use_tmpfs,
+                tmpfs_fallback=tmpfs_fallback,
+                tmpfs_size=tmpfs_size
+            )
+            if not success:
+                if progress_callback:
+                    progress_callback(target['host'], "Failed")
+                return False
+                
+            if progress_callback:
+                progress_callback(target['host'], "Finished")
+                
             return True
 
         finally:
@@ -743,5 +997,5 @@ def backup_router(target: TargetConfig, config: BackupConfig,
     except Exception as e:
         logger.error(f"Backup failed: {str(e)}")
         if progress_callback:
-            progress_callback(target_name, "Failed")
+            progress_callback(target['host'], "Failed")
         return False

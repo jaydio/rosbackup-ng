@@ -37,6 +37,11 @@ ssh:
 #parallel_execution: true     # Enable parallel backups (optional, default: true)
 #max_parallel_backups: 5      # Maximum concurrent backups (optional, default: 5)
 
+# Temporary Storage Settings
+use_tmpfs: true              # Use tmpfs for temporary storage (optional, default: true)
+#tmpfs_fallback: true        # Fall back to EEPROM if tmpfs fails (optional, default: true)
+#tmpfs_size: 50M             # Size of tmpfs in MB (optional, auto-calculated if not set)
+
 # Logging Settings
 #log_file_enabled: false      # Enable logging to file (optional, default: false)
 #log_file: ./rosbackup.log    # Log file path (optional if log_file_enabled is false)

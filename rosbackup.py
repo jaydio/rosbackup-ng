@@ -49,7 +49,13 @@ def parse_arguments() -> argparse.Namespace:
                             default="INFO", help="Logging level")
     output_group.add_argument("-x", "--compose-style", action="store_true",
                             help="Show Docker Compose style output instead of log messages")
-    
+
+    # Temporary storage options
+    parser.add_argument("-T", "--no-tmpfs", action="store_true",
+                       help="Disable tmpfs usage for all targets")
+    parser.add_argument("-s", "--tmpfs-size",
+                       help="Override tmpfs size for all targets (e.g., '50M')")
+
     parser.add_argument("-n", "--no-color", action="store_true",
                        help="Disable colored output")
     parser.add_argument("-d", "--dry-run", action="store_true",
@@ -76,6 +82,9 @@ class GlobalConfig(TypedDict, total=False):
         notifications: Notification configuration
         ssh: SSH configuration
         timezone: Optional timezone for timestamps (e.g. Europe/Berlin)
+        use_tmpfs: Use tmpfs for temporary storage
+        tmpfs_fallback: Fall back to EEPROM if tmpfs fails
+        tmpfs_size: Size of tmpfs in MB
     """
     backup_path: str
     backup_password: str
@@ -84,6 +93,9 @@ class GlobalConfig(TypedDict, total=False):
     notifications: Dict[str, Any]
     ssh: Dict[str, Any]
     timezone: str
+    use_tmpfs: bool
+    tmpfs_fallback: bool
+    tmpfs_size: Optional[str]
 
 
 class TargetConfig(TypedDict):
@@ -106,6 +118,9 @@ class TargetConfig(TypedDict):
         keep_plaintext_backup: Keep plaintext backup on target
         backup_password: Target-specific backup password
         backup_retention_days: Target-specific retention period
+        use_tmpfs: Override global tmpfs usage
+        tmpfs_fallback: Override global tmpfs fallback
+        tmpfs_size: Override global tmpfs size
     """
     name: str
     host: str
@@ -118,6 +133,9 @@ class TargetConfig(TypedDict):
     keep_plaintext_backup: bool
     backup_password: Optional[str]
     backup_retention_days: Optional[int]
+    use_tmpfs: Optional[bool]
+    tmpfs_fallback: Optional[bool]
+    tmpfs_size: Optional[str]
 
 
 def backup_target(
@@ -306,7 +324,10 @@ def backup_target(
                 backup_dir=backup_dir,
                 timestamp=timestamp,
                 keep_binary_backup=target.get('keep_binary_backup', False),
-                dry_run=dry_run
+                dry_run=dry_run,
+                use_tmpfs=target.get('use_tmpfs', config.get('use_tmpfs', True) if config else True),
+                tmpfs_fallback=target.get('tmpfs_fallback', config.get('tmpfs_fallback', True) if config else True),
+                tmpfs_size=target.get('tmpfs_size', config.get('tmpfs_size', None) if config else None)
             )
             if not binary_success:
                 if not suppress_logs:
@@ -416,34 +437,29 @@ def main() -> None:
         'max_parallel': global_config_data.get('max_parallel_backups', 5),
         'notifications': global_config_data.get('notifications', {}),
         'ssh': global_config_data.get('ssh', {}),
+        'use_tmpfs': global_config_data.get('use_tmpfs', True),
+        'tmpfs_fallback': global_config_data.get('tmpfs_fallback', True),
+        'tmpfs_size': global_config_data.get('tmpfs_size')
     }
 
     # Apply CLI overrides for parallel execution settings
     if args.no_parallel:
         global_config['parallel_backups'] = False
-        if not args.compose_style:
-            logger.info("Parallel execution disabled via CLI")
-    if args.max_parallel is not None:
-        if args.max_parallel < 1:
-            logger.error("max-parallel must be at least 1")
-            sys.exit(1)
+    if args.max_parallel:
         global_config['max_parallel'] = args.max_parallel
-        if not args.compose_style:
-            logger.info(f"Maximum parallel backups set to {args.max_parallel} via CLI")
-    
-    # Handle timezone
-    if 'timezone' in global_config_data:
-        system_tz = get_system_timezone()
-        if not args.compose_style:
-            logger.info(f"Using timezone: {global_config_data['timezone']}")
-        global_config['timezone'] = global_config_data['timezone']
-        # Set timezone for logging
-        LogManager().set_timezone(get_timezone(global_config['timezone']))
+
+    # Apply CLI overrides for tmpfs settings
+    if args.no_tmpfs:
+        global_config['use_tmpfs'] = False
+    if args.tmpfs_size:
+        global_config['tmpfs_size'] = args.tmpfs_size
+
+    # Create backup directory if it doesn't exist
+    backup_path = Path(global_config['backup_path'])
 
     logger.debug(f"Loaded global config: {global_config_data}")
         
     # Set up backup directory
-    backup_path = Path(global_config['backup_path'])
     os.makedirs(backup_path, exist_ok=True)
 
     # Initialize notification system with defaults

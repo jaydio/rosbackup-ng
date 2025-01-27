@@ -6,7 +6,7 @@ _rosbackup_ng_completions()
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="--help --dry-run --config-dir --log-file --log-level --no-color --no-parallel --max-parallel --target --compose-style"
+    opts="--help --dry-run --config-dir --log-file --log-level --no-color --no-parallel --max-parallel --target --compose-style --no-tmpfs --tmpfs-size"
 
     # Check if any output style or logging option is already used
     local has_output_style=false
@@ -42,6 +42,10 @@ _rosbackup_ng_completions()
             # No completion for numbers
             return 0
             ;;
+        --tmpfs-size)
+            # No completion for size values
+            return 0
+            ;;
         --target)
             # Complete target names from targets.yaml
             if [ -f "./config/targets.yaml" ]; then
@@ -54,14 +58,14 @@ _rosbackup_ng_completions()
         *)
             # Filter out mutually exclusive options
             local filtered_opts="$opts"
-            if [ "$has_output_style" = true ]; then
-                # If compose style is used, remove logging options
-                filtered_opts=$(echo "$filtered_opts" | tr ' ' '\n' | grep -v -E '^(--log-file|--log-level)$' | tr '\n' ' ')
-            elif [ "$has_logging" = true ]; then
-                # If logging options are used, remove output style options
-                filtered_opts=$(echo "$filtered_opts" | tr ' ' '\n' | grep -v -E '^(--compose-style)$' | tr '\n' ' ')
+            if $has_output_style; then
+                filtered_opts=${filtered_opts/--log-file/}
+                filtered_opts=${filtered_opts/--log-level/}
             fi
-            # Complete option names
+            if $has_logging; then
+                filtered_opts=${filtered_opts/--compose-style/}
+            fi
+
             COMPREPLY=( $(compgen -W "${filtered_opts}" -- ${cur}) )
             return 0
             ;;
