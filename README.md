@@ -19,12 +19,19 @@ A powerful and flexible backup solution for MikroTik RouterOS devices. This tool
   - Configurable retention periods
   - Compose-style visualization
   - Detailed logging
+  - Tmpfs-based backup storage to reduce flash wear
 
 - **Security Features**
   - SSH key-based authentication
   - Encrypted backups
   - Configurable SSH parameters
   - Host key verification
+
+- **Storage Optimization**
+  - Tmpfs-based temporary storage
+  - Automatic tmpfs size calculation
+  - Configurable fallback behavior
+  - Flash wear reduction
 
 - **Monitoring & Notifications**
   - Email notifications for backup status
@@ -39,6 +46,7 @@ A powerful and flexible backup solution for MikroTik RouterOS devices. This tool
 - [`doc/FILESYSTEM_STRUCTURE.md`](doc/FILESYSTEM_STRUCTURE.md) - Overview of the project's directory structure and organization
 - [`doc/BACKUP_STRUCTURE.md`](doc/BACKUP_STRUCTURE.md) - Details about backup file formats, naming conventions, and information files
 - [`doc/DESIGN_REFERENCE.md`](doc/DESIGN_REFERENCE.md) - Technical documentation about application architecture and development
+- [`doc/TMPFS_FEATURES.md`](doc/TMPFS_FEATURES.md) - Documentation for tmpfs features
 
 ## Prerequisites
 
@@ -71,31 +79,6 @@ A powerful and flexible backup solution for MikroTik RouterOS devices. This tool
    cp config/targets.yaml.sample config/targets.yaml
    ```
 
-5. Set up SSH keys (choose one option):
-   
-   a. Create symbolic links to existing keys:
-   ```bash
-   mkdir -p ssh-keys/{public,private}
-   ln -s ~/.ssh/id_rsa ssh-keys/private/id_rosbackup
-   ln -s ~/.ssh/id_rsa.pub ssh-keys/public/id_rosbackup.pub
-   ```
-
-   b. Generate new key pair:
-   ```bash
-   mkdir -p ssh-keys/{public,private}
-   ssh-keygen -t rsa -b 4096 -f ssh-keys/private/id_rosbackup -C "rosbackup"
-   ```
-
-6. Configure RouterOS devices for backup:
-   
-   Use `bootstrap_router.py` to bootstrap targets:
-   ```bash
-   # Basic usage - will prompt for SSH password
-   python3 bootstrap_router.py --host 192.168.88.1 --backup-user-public-key ssh-keys/public/id_rosbackup.pub
-   ```
-   
-   See [BOOTSTRAP.md](BOOTSTRAP.md) for detailed usage instructions.
-
 ## Configuration
 
 ### Global Configuration (global.yaml)
@@ -127,6 +110,11 @@ ssh:
     auth_timeout: 10          # SSH auth timeout (optional, default: 5)
     #keepalive_interval: 60   # Keepalive interval (optional, default: 60)
     #keepalive_countmax: 3    # Max failed keepalives (optional, default: 3)
+
+# Temporary Storage Settings
+use_tmpfs: true              # Use tmpfs for temporary storage (default: true)
+tmpfs_fallback: true         # Fall back to EEPROM if tmpfs fails (default: true)
+tmpfs_size: 50M              # Size of tmpfs in MB (optional, auto-calculated if not set)
 ```
 
 ### Target Configuration (targets.yaml)
@@ -164,6 +152,9 @@ targets:
     enable_plaintext_backup: true
     keep_binary_backup: true        # Keep binary backup on router
     keep_plaintext_backup: true     # Keep plaintext backup on router
+    use_tmpfs: true
+    tmpfs_fallback: true
+    tmpfs_size: 25M          # Override global tmpfs size
 ```
 
 #### Multiple Targets with Different Requirements

@@ -157,6 +157,131 @@ graph TB
    - Context information
    - Recovery attempts
 
+## Backup Workflows
+
+### 1. Binary Backup (.backup)
+
+The binary backup process creates a full system backup file that can be used for complete system restoration.
+
+#### File Paths and Storage
+1. **Without tmpfs (--no-tmpfs)**
+   - Backup file is created directly in router's root directory (`/`)
+   - File naming: `/{identity}_{version}_{arch}_{timestamp}.backup`
+   - Example: `/PNTY-VM2-R1_7.16.2_x86_64_01282025-014741.backup`
+
+2. **With tmpfs (default)**
+   - Backup file is initially created in `/rosbackup/` directory on tmpfs
+   - File naming: `/rosbackup/{identity}_{version}_{arch}_{timestamp}.backup`
+   - Example: `/rosbackup/PNTY-VM2-R1_7.16.2_x86_64_01282025-014741.backup`
+
+#### Workflow Steps
+1. **tmpfs Setup (if enabled)**
+   - Calculate tmpfs size based on router's free memory
+   - Create tmpfs with name `rosbackup` (this will automatically mount it under /rosbackup/)
+   - Fall back to root storage if tmpfs fails and fallback is enabled
+
+2. **Backup Creation**
+   - Generate backup command with appropriate path
+   - Add encryption if password is provided
+   - Execute backup command
+   - Verify backup file exists and has size
+   - Download backup file using SCP
+
+3. **Post-Backup Actions**
+   - If `keep_binary_backup=true`:
+     - Move file from tmpfs to root using `/file/set name=`
+   - If `keep_binary_backup=false`:
+     - Remove backup file from router
+
+### 2. Plaintext Backup (.rsc)
+
+The plaintext backup exports router configuration in RouterOS command format.
+
+#### File Paths and Storage
+1. **Without tmpfs (--no-tmpfs)**
+   - Export file is created directly in root directory (`/`)
+   - File naming: `/{identity}_{version}_{arch}_{timestamp}.rsc`
+   - Example: `/PNTY-VM2-R1_7.16.2_x86_64_01282025-014741.rsc`
+
+2. **With tmpfs (default)**
+   - Export file is initially created in `/rosbackup/` directory on tmpfs
+   - File naming: `/rosbackup/{identity}_{version}_{arch}_{timestamp}.rsc`
+   - Example: `/rosbackup/PNTY-VM2-R1_7.16.2_x86_64_01282025-014741.rsc`
+
+#### Workflow Steps
+1. **Export Creation**
+   - If `keep_plaintext_backup=true`:
+     - Generate export command with file path
+     - Execute export command
+     - Verify export file exists
+     - Download export file using SCP
+   - If `keep_plaintext_backup=false`:
+     - Execute export command without file
+     - Stream output directly to local file
+
+2. **Post-Export Actions**
+   - If `keep_plaintext_backup=true`:
+     - Move file from tmpfs to root using `/file/set name=`
+   - If `keep_plaintext_backup=false`:
+     - Remove export file from router
+
+### 3. tmpfs Management
+
+The tmpfs feature minimizes wear on the router's storage by using RAM for temporary file storage.
+
+#### Setup
+1. **Size Calculation**
+   - For routers with ≥256MB free memory = Uses a fixed size of 50MB
+   - For routers with <256MB free memory = Uses 1% of the available memory
+   - Can be overridden with `tmpfs_size` in config
+   - Minimum size: 5M
+   - Maximum size: 50M
+
+2. **Mount Process**
+   ```routeros
+   /disk/add type=tmpfs tmpfs-max-size=50M slot=rosbackup
+   ```
+
+3. **Cleanup Process**
+   ```routeros
+   /disk/remove [find slot=rosbackup]
+   ```
+
+#### Important Notes
+1. **Single tmpfs Instance**
+   - One tmpfs mount is used for both binary and plaintext backups
+   - Created before first backup
+   - Cleaned up after all backup operations complete
+   - Must not be cleaned up between backups
+
+2. **File Movement**
+   - When keeping backups, files must be moved from tmpfs to root
+   - Use `/file/set name=` command for moving
+   - Example: `/file/set name="/backup.rsc" [find name="/rosbackup/backup.rsc"]`
+
+3. **Error Handling**
+   - If tmpfs creation fails and fallback is enabled, use root storage
+   - If tmpfs creation fails and fallback is disabled, abort backup
+   - Clean up tmpfs only after all operations complete
+   - Failed tmpfs cleanup should not fail the backup
+
+### 4. SCP File Transfer
+
+The SCP transfer process handles downloading backup files from the router.
+
+#### Important Notes
+1. **Path Handling**
+   - SCP supports paths with leading slash
+   - Example: `/backup.rsc` or `/rosbackup/backup.rsc`
+
+2. **Error Handling**
+   - Verify file exists before transfer
+     - E.g. `/file/print where name=` - if output returns a result, the file exists
+     - Output of `/file/print where name=` also contains file size
+   - Check file size after transfer
+   - Clean up failed transfers
+   - Log transfer errors with context
+
 ## Core Module Details
 
 ### BackupManager Class
@@ -203,8 +328,6 @@ class LogManager:
     def get_logger(self, name, target_name)
     def set_log_level(self, level)
 ```
-
-
 
 ## Development Guidelines
 
