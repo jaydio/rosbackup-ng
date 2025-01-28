@@ -34,3 +34,7 @@ __pycache__/
 
 # Environment files
 .env
+
+# Task related files (develpopment)
+tasks/*
+!tasks/*.gitkeep
