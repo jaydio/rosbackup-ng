@@ -181,7 +181,7 @@ class SSHManager:
         self,
         ssh_client: paramiko.SSHClient,
         command: str,
-        timeout: Optional[int] = None,
+        timeout: Optional[int] = 60,  # Default 60 second timeout
         get_pty: bool = False
     ) -> Tuple[str, str, int]:
         """
@@ -190,7 +190,7 @@ class SSHManager:
         Args:
             ssh_client: Connected SSH client
             command: Command to execute
-            timeout: Command execution timeout
+            timeout: Command execution timeout in seconds (default: 60)
             get_pty: Whether to request a PTY
             
         Returns:
@@ -210,6 +210,10 @@ class SSHManager:
             
             return stdout_str, stderr_str, exit_status
 
+        except socket.timeout:
+            self.logger.error(f"Command '{command}' timed out after {timeout} seconds")
+            raise TimeoutError(f"Command execution timed out after {timeout} seconds")
+            
         except Exception as e:
             self.logger.error(f"Error executing command '{command}': {str(e)}")
             raise RuntimeError(f"Command execution failed: {str(e)}")

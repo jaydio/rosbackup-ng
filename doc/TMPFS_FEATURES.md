@@ -1,6 +1,8 @@
 # Tmpfs Features
 
-RouterOS Backup NG includes support for using tmpfs (temporary file system) to reduce wear on the router's flash storage when creating backups. This document explains the feature in detail.
+RouterOS Backup NG can be configured to use tmpfs (a temporary file system) to minimize flash storage wear when creating backups. This feature is available on RouterOS devices running v7.7 or later. If tmpfs is enabled in the global or target-specific settings, the tool automatically checks the RouterOS version and falls back to root storage if the version is earlier than v7.7. [RouterOS v7.7 changelog showing added support for tmpfs][1].
+
+[1]: https://forum.mikrotik.com/viewtopic.php?t=192427
 
 ## Overview
 
@@ -40,9 +42,14 @@ The tool automatically calculates the appropriate tmpfs size based on the router
 
 ```yaml
 # Temporary Storage Settings
-use_tmpfs: true              # Use tmpfs for temporary storage
-tmpfs_fallback: true         # Fall back to EEPROM if tmpfs fails
-tmpfs_size: 50M              # Size of tmpfs in MB (optional)
+tmpfs:
+  enabled: true              # Use tmpfs for temporary storage (default: true)
+  fallback_enabled: true     # Fall back to root storage if tmpfs fails (default: true)
+  size_auto: true           # Calculate size based on available memory (default: true)
+  size_mb: 50               # Fixed size in MB when size_auto is false (default: 50)
+  min_size_mb: 1            # Minimum size in MB for auto calculation (default: 1)
+  max_size_mb: 50           # Maximum size in MB for auto calculation (default: 50)
+  mount_point: "rosbackup"  # Mount point name for tmpfs (default: "rosbackup")
 ```
 
 ### Target-Specific Configuration (targets.yaml)
@@ -51,10 +58,13 @@ tmpfs_size: 50M              # Size of tmpfs in MB (optional)
 targets:
   - name: ROUTER-1
     # ... other settings ...
-    use_tmpfs: true          # Override global setting
-    tmpfs_fallback: true     # Override global fallback behavior
-    tmpfs_size: 25M          # Override global size
+    tmpfs:
+      enabled: true          # Override global tmpfs enable/disable (optional)
+      fallback_enabled: true # Override global fallback behavior (optional)
+      size_mb: 25           # Override global fixed size in MB (optional)
 ```
+
+Note: Target-specific configuration only supports overriding `enabled`, `fallback_enabled`, and `size_mb`. Other parameters like `size_auto`, `min_size_mb`, `max_size_mb`, and `mount_point` can only be set globally.
 
 ### Command Line Options
 

@@ -29,8 +29,12 @@ __pycache__/
 # IDE specific files
 .vscode/
 .idea/
-*.swp
-*.swo
 
 # Environment files
 .env
+
+# Windsurf IDE files
+.windsurfrules
+.windsurf/
+*.swp
+*.swo

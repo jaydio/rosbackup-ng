@@ -24,3 +24,9 @@ targets:
     #enable_plaintext_backup: true      # Enable plaintext backup (optional, default: true)
     #keep_binary_backup: false          # Keep binary backup (optional, default: false)
     #keep_plaintext_backup: false       # Keep plaintext backup (optional, default: false)
+
+    # Temporary Storage Settings
+    tmpfs:
+      enabled: true          # Override global tmpfs enable/disable (optional)
+      fallback_enabled: true # Override global fallback behavior (optional)
+      size_mb: 25           # Override global fixed size in MB (optional)

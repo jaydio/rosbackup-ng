@@ -20,6 +20,7 @@ A powerful and flexible backup solution for MikroTik RouterOS devices. This tool
   - Compose-style visualization
   - Detailed logging
   - Tmpfs-based backup storage to reduce flash wear
+  - 60-second command timeout to prevent hanging operations
 
 - **Security Features**
   - SSH key-based authentication

@@ -79,15 +79,25 @@ graph TB
 
 4. **Backup Creation (`BackupManager`)**
    - Binary backup:
-     1. Generate backup command
-     2. Apply encryption if enabled
-     3. Download backup file
-     4. Verify file integrity
+     1. Check RouterOS version (≥7.7 required for tmpfs)
+     2. If tmpfs enabled:
+        - Calculate size based on memory if auto-sizing
+        - Create tmpfs mount at configured mount point
+        - Create backup in tmpfs
+        - Download backup file
+        - If keep_binary_backup=true, move to root storage
+        - Clean up tmpfs
+     3. If tmpfs disabled or fallback:
+        - Create backup directly in root storage
+        - Download backup file
+     4. Verify backup integrity
+     5. Apply encryption if enabled
    - Plaintext backup:
      1. Execute export command
      2. Process configuration
      3. Save to file
      4. Validate content
+     5. Built-in 60-second timeout to prevent hanging operations
 
 5. **File Management**
    - Create target directories
