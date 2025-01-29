@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.5.0] - 2025-01-30
+
+### Added
+- Implemented tmpfs support for RouterOS backups:
+  * Added automatic tmpfs mounting and cleanup
+  * Improved backup performance by using memory-based temporary storage
+  * Added fallback to direct flash storage when tmpfs is unavailable
+- Added tasks directory for future task-based operations
+
+### Changed
+- Improved repository structure and organization:
+  * Cleaned up repository layout
+  * Updated gitignore rules
+  * Better separation of concerns in codebase
+
+### Documentation
+- Updated README.md with compose-style output demo
+- Fixed typography in documentation
+- Added ZeroTier identity export documentation
+
 ## [0.4.1] - 2025-01-08
 
 ### Added
