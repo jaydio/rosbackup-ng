@@ -54,6 +54,7 @@ A powerful and flexible backup solution for MikroTik RouterOS devices. This tool
 - Python 3.13.1 or higher
 - RouterOS devices with SSH access enabled
 - SSH key pair for authentication
+- RouterOS v7.7 or later for tmpfs support (will fallback to direct storage for older versions)
 
 ## Installation
 
@@ -113,9 +114,14 @@ ssh:
     #keepalive_countmax: 3    # Max failed keepalives (optional, default: 3)
 
 # Temporary Storage Settings
-use_tmpfs: true              # Use tmpfs for temporary storage (default: true)
-tmpfs_fallback: true         # Fall back to EEPROM if tmpfs fails (default: true)
-tmpfs_size: 50M              # Size of tmpfs in MB (optional, auto-calculated if not set)
+tmpfs:
+  enabled: true              # Use tmpfs for temporary storage (default: true)
+  fallback_enabled: true     # Fall back to root storage if tmpfs fails (default: true)
+  size_auto: true           # Calculate size based on available memory (default: true)
+  size_mb: 50               # Fixed size in MB when size_auto is false (default: 50)
+  min_size_mb: 1            # Minimum size in MB for auto calculation (default: 1)
+  max_size_mb: 50           # Maximum size in MB for auto calculation (default: 50)
+  mount_point: "rosbackup"  # Mount point name for tmpfs (default: "rosbackup")
 ```
 
 ### Target Configuration (targets.yaml)
@@ -153,9 +159,10 @@ targets:
     enable_plaintext_backup: true
     keep_binary_backup: true        # Keep binary backup on router
     keep_plaintext_backup: true     # Keep plaintext backup on router
-    use_tmpfs: true
-    tmpfs_fallback: true
-    tmpfs_size: 25M          # Override global tmpfs size
+    tmpfs:
+      enabled: true                 # Override global tmpfs enable/disable (optional)
+      fallback_enabled: true        # Override global fallback behavior (optional)
+      size_mb: 25                   # Override global fixed size in MB (optional)
 ```
 
 #### Multiple Targets with Different Requirements
