@@ -26,6 +26,7 @@ targets:
     #keep_plaintext_backup: false       # Keep plaintext backup (optional, default: false)
 
     # Temporary Storage Settings
-    #use_tmpfs: true                    # Override global tmpfs usage (optional)
-    #tmpfs_fallback: true               # Override global tmpfs fallback (optional)
-    #tmpfs_size: 50M                    # Override global tmpfs size (optional)
+    tmpfs:
+      enabled: true          # Override global tmpfs enable/disable (optional)
+      fallback_enabled: true # Override global fallback behavior (optional)
+      size_mb: 25           # Override global fixed size in MB (optional)

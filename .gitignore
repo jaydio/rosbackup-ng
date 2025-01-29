@@ -29,12 +29,12 @@ __pycache__/
 # IDE specific files
 .vscode/
 .idea/
-*.swp
-*.swo
 
 # Environment files
 .env
 
-# Task related files (develpopment)
-tasks/*
-!tasks/*.gitkeep
+# Windsurf IDE files
+.windsurfrules
+.windsurf/
+*.swp
+*.swo

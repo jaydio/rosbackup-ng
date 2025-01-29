@@ -20,6 +20,7 @@ A powerful and flexible backup solution for MikroTik RouterOS devices. This tool
   - Compose-style visualization
   - Detailed logging
   - Tmpfs-based backup storage to reduce flash wear
+  - 60-second command timeout to prevent hanging operations
 
 - **Security Features**
   - SSH key-based authentication
@@ -110,11 +111,6 @@ ssh:
     auth_timeout: 10          # SSH auth timeout (optional, default: 5)
     #keepalive_interval: 60   # Keepalive interval (optional, default: 60)
     #keepalive_countmax: 3    # Max failed keepalives (optional, default: 3)
-
-# Temporary Storage Settings
-use_tmpfs: true              # Use tmpfs for temporary storage (default: true)
-tmpfs_fallback: true         # Fall back to EEPROM if tmpfs fails (default: true)
-tmpfs_size: 50M              # Size of tmpfs in MB (optional, auto-calculated if not set)
 ```
 
 ### Target Configuration (targets.yaml)
@@ -152,9 +148,6 @@ targets:
     enable_plaintext_backup: true
     keep_binary_backup: true        # Keep binary backup on router
     keep_plaintext_backup: true     # Keep plaintext backup on router
-    use_tmpfs: true
-    tmpfs_fallback: true
-    tmpfs_size: 25M          # Override global tmpfs size
 ```
 
 #### Multiple Targets with Different Requirements

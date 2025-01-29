@@ -38,9 +38,14 @@ ssh:
 #max_parallel_backups: 5      # Maximum concurrent backups (optional, default: 5)
 
 # Temporary Storage Settings
-use_tmpfs: true              # Use tmpfs for temporary storage (optional, default: true)
-#tmpfs_fallback: true        # Fall back to EEPROM if tmpfs fails (optional, default: true)
-#tmpfs_size: 50M             # Size of tmpfs in MB (optional, auto-calculated if not set)
+tmpfs:
+  enabled: true              # Use tmpfs for temporary storage (default: true)
+  fallback_enabled: true     # Fall back to root storage if tmpfs fails (default: true)
+  size_auto: true           # Calculate size based on available memory (default: true)
+  size_mb: 50               # Fixed size in MB when size_auto is false (default: 50)
+  min_size_mb: 1            # Minimum size in MB for auto calculation (default: 1)
+  max_size_mb: 50           # Maximum size in MB for auto calculation (default: 50)
+  mount_point: "rosbackup"  # Mount point name for tmpfs (default: "rosbackup")
 
 # Logging Settings
 #log_file_enabled: false      # Enable logging to file (optional, default: false)

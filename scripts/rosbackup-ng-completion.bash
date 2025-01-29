@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 
+# NOTE: We don't want short-form parameters in favor of long-form only
+
 _rosbackup_ng_completions()
 {
     local cur prev opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    # Define all available options (long-form only)
     opts="--help --dry-run --config-dir --log-file --log-level --no-color --no-parallel --max-parallel --target --compose-style --no-tmpfs --tmpfs-size"
 
     # Check if any output style or logging option is already used
@@ -57,15 +61,14 @@ _rosbackup_ng_completions()
             ;;
         *)
             # Filter out mutually exclusive options
-            local filtered_opts="$opts"
+            local filtered_opts="${opts}"
             if $has_output_style; then
-                filtered_opts=${filtered_opts/--log-file/}
-                filtered_opts=${filtered_opts/--log-level/}
+                filtered_opts="${filtered_opts/--log-file/}"
+                filtered_opts="${filtered_opts/--log-level/}"
             fi
             if $has_logging; then
-                filtered_opts=${filtered_opts/--compose-style/}
+                filtered_opts="${filtered_opts/--compose-style/}"
             fi
-
             COMPREPLY=( $(compgen -W "${filtered_opts}" -- ${cur}) )
             return 0
             ;;
@@ -80,45 +83,34 @@ _bootstrap_router_completions()
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="--help --host --ssh-user --ssh-user-password --ssh-user-private-key \
-          --ssh-port --backup-user --backup-user-password --backup-user-group \
-          --backup-user-public-key --show-backup-credentials --log-file --no-color \
-          --dry-run --force"
+
+    # Define all available options (long-form only)
+    opts="--help --host --backup-user-public-key --ssh-user-password --ssh-user-private-key --ssh-user --ssh-port --backup-user --backup-user-password --backup-user-group --show-backup-credentials --log-file --no-color --dry-run --force"
 
     case "${prev}" in
         --host)
-            # No completion for host addresses
+            # No completion for hostnames
+            return 0
+            ;;
+        --backup-user-public-key|--ssh-user-private-key|--log-file)
+            # Complete file paths
+            COMPREPLY=( $(compgen -f -- ${cur}) )
             return 0
             ;;
         --ssh-user|--backup-user)
             # No completion for usernames
             return 0
             ;;
-        --ssh-user-password|--backup-user-password)
-            # No completion for passwords
-            return 0
-            ;;
-        --ssh-user-private-key|--backup-user-public-key)
-            # Complete file paths
-            COMPREPLY=( $(compgen -f -- ${cur}) )
+        --backup-user-group)
+            # Complete common RouterOS user groups
+            COMPREPLY=( $(compgen -W "read write full" -- ${cur}) )
             return 0
             ;;
         --ssh-port)
             # No completion for port numbers
             return 0
             ;;
-        --backup-user-group)
-            # Complete common RouterOS groups
-            COMPREPLY=( $(compgen -W "full read write" -- ${cur}) )
-            return 0
-            ;;
-        --log-file)
-            # Complete file paths
-            COMPREPLY=( $(compgen -f -- ${cur}) )
-            return 0
-            ;;
         *)
-            # Complete option names
             COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
             return 0
             ;;

@@ -33,6 +33,7 @@ from core.router_utils import RouterInfoManager
 from core.shell_utils import ColoredFormatter, ShellPbarHandler
 from core.ssh_utils import SSHManager
 from core.time_utils import get_timezone, get_system_timezone, get_current_time, get_timestamp
+from core.tmpfs_utils import TmpfsConfig, TargetTmpfsConfig
 
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
@@ -60,6 +61,10 @@ def parse_arguments() -> argparse.Namespace:
                        help="Override maximum parallel backups")
     parser.add_argument("-t", "--target",
                        help="Run backup on specific target only")
+    parser.add_argument("-T", "--no-tmpfs", action="store_true",
+                       help="Disable tmpfs usage for all targets")
+    parser.add_argument("-s", "--tmpfs-size", type=int,
+                       help="Override tmpfs size for all targets (e.g., '25' for 25MB)")
 
     return parser.parse_args()
 
@@ -76,6 +81,7 @@ class GlobalConfig(TypedDict, total=False):
         notifications: Notification configuration
         ssh: SSH configuration
         timezone: Optional timezone for timestamps (e.g. Europe/Berlin)
+        tmpfs: Tmpfs configuration
     """
     backup_path: str
     backup_password: str
@@ -84,6 +90,7 @@ class GlobalConfig(TypedDict, total=False):
     notifications: Dict[str, Any]
     ssh: Dict[str, Any]
     timezone: str
+    tmpfs: TmpfsConfig
 
 
 class TargetConfig(TypedDict):
@@ -99,18 +106,17 @@ class TargetConfig(TypedDict):
             - user: SSH username
             - private_key: Path to SSH private key
             - args: Additional SSH arguments
-        encrypted: Enable backup encryption
-        enable_binary_backup: Enable binary backup creation
-        enable_plaintext_backup: Enable plaintext backup creation
-        keep_binary_backup: Keep binary backup on target
-        keep_plaintext_backup: Keep plaintext backup on target
-        backup_password: Target-specific backup password
-        backup_retention_days: Target-specific retention period
+        tmpfs: Optional tmpfs configuration containing:
+            - enabled: Override global tmpfs enable/disable
+            - fallback_enabled: Override global fallback behavior
+            - size_auto: Override global auto-size setting
+            - size_mb: Override global size in MB
     """
     name: str
     host: str
     enabled: bool
     ssh: Dict[str, Any]
+    tmpfs: Optional[TargetTmpfsConfig]
     encrypted: bool
     enable_binary_backup: bool
     enable_plaintext_backup: bool
@@ -131,7 +137,8 @@ def backup_target(
     config: Optional[GlobalConfig] = None,
     suppress_logs: bool = False,
     compose_handler: Optional[ComposeStyleHandler] = None,
-    progress_callback: Optional[callable] = None
+    progress_callback: Optional[callable] = None,
+    no_tmpfs: bool = False
 ) -> bool:
     """
     Backup a single target's configuration.
@@ -148,6 +155,7 @@ def backup_target(
         suppress_logs: If True, suppress log messages during compose-style output
         compose_handler: Optional ComposeStyleHandler for Docker Compose style output
         progress_callback: Optional callback function for progress updates
+        no_tmpfs: If True, disable tmpfs usage for this target
 
     Returns:
         bool: True if backup successful, False otherwise
@@ -306,7 +314,9 @@ def backup_target(
                 backup_dir=backup_dir,
                 timestamp=timestamp,
                 keep_binary_backup=target.get('keep_binary_backup', False),
-                dry_run=dry_run
+                dry_run=dry_run,
+                use_tmpfs=not no_tmpfs and config.get('tmpfs', {}).get('enabled', True),
+                tmpfs_config=config.get('tmpfs') if config else None
             )
             if not binary_success:
                 if not suppress_logs:
@@ -325,7 +335,9 @@ def backup_target(
                 backup_dir=backup_dir,
                 timestamp=timestamp,
                 keep_plaintext_backup=target.get('keep_plaintext_backup', False),
-                dry_run=dry_run
+                dry_run=dry_run,
+                use_tmpfs=True,
+                tmpfs_config=config.get('tmpfs') if config else None
             )
             if not plaintext_success:
                 if not suppress_logs:
@@ -409,6 +421,17 @@ def main() -> None:
     logger = log_manager.get_logger('SYSTEM')
 
     # Convert to GlobalConfig TypedDict
+    tmpfs_data = global_config_data.get('tmpfs', {})
+    tmpfs_config = TmpfsConfig(
+        enabled=tmpfs_data.get('enabled', True),  
+        fallback_enabled=tmpfs_data.get('fallback_enabled', True),
+        size_auto=tmpfs_data.get('size_auto', True),
+        size_mb=tmpfs_data.get('size_mb', 50),
+        min_size_mb=tmpfs_data.get('min_size_mb', 1),  
+        max_size_mb=tmpfs_data.get('max_size_mb', 50),  
+        mount_point=tmpfs_data.get('mount_point', 'rosbackup')  
+    )
+
     global_config: GlobalConfig = {
         'backup_path': global_config_data.get('backup_path_parent', 'backups'),
         'backup_password': global_config_data.get('backup_password', ''),
@@ -416,26 +439,29 @@ def main() -> None:
         'max_parallel': global_config_data.get('max_parallel_backups', 5),
         'notifications': global_config_data.get('notifications', {}),
         'ssh': global_config_data.get('ssh', {}),
+        'tmpfs': tmpfs_config,
     }
 
     # Apply CLI overrides for parallel execution settings
     if args.no_parallel:
         global_config['parallel_backups'] = False
-        if not args.compose_style:
-            logger.info("Parallel execution disabled via CLI")
     if args.max_parallel is not None:
         if args.max_parallel < 1:
             logger.error("max-parallel must be at least 1")
             sys.exit(1)
         global_config['max_parallel'] = args.max_parallel
-        if not args.compose_style:
-            logger.info(f"Maximum parallel backups set to {args.max_parallel} via CLI")
     
+    # Apply CLI overrides for tmpfs settings
+    if args.no_tmpfs:
+        global_config['tmpfs']['enabled'] = False
+    if args.tmpfs_size is not None:
+        global_config['tmpfs']['size_auto'] = False
+        global_config['tmpfs']['size_mb'] = args.tmpfs_size
+
     # Handle timezone
     if 'timezone' in global_config_data:
         system_tz = get_system_timezone()
-        if not args.compose_style:
-            logger.info(f"Using timezone: {global_config_data['timezone']}")
+        logger.info(f"Using timezone: {global_config_data['timezone']}")
         global_config['timezone'] = global_config_data['timezone']
         # Set timezone for logging
         LogManager().set_timezone(get_timezone(global_config['timezone']))
@@ -501,13 +527,11 @@ def main() -> None:
         if not targets_data:
             logger.error(f"Target not found: {args.target}")
             sys.exit(1)
-        if not args.compose_style:
-            logger.info(f"Running backup for target: {args.target}")
+        logger.info(f"Running backup for target: {args.target}")
 
     # Filter enabled targets
     targets_data = [t for t in targets_data if t.get('enabled', True)]
-    if not args.compose_style:
-        logger.info(f"Found {len(targets_data)} enabled target(s)")
+    logger.info(f"Found {len(targets_data)} enabled target(s)")
 
     # Create compose style handler if enabled
     compose_handler = None
@@ -521,8 +545,7 @@ def main() -> None:
 
     if global_config['parallel_backups'] and len(targets_data) > 1:
         max_workers = min(global_config['max_parallel'], len(targets_data))
-        if not args.compose_style:
-            logger.info(f"Running parallel backup with {max_workers} workers")
+        logger.info(f"Running parallel backup with {max_workers} workers")
 
         try:
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -553,20 +576,20 @@ def main() -> None:
                         config=global_config,
                         suppress_logs=args.compose_style,
                         compose_handler=compose_handler,
+                        no_tmpfs=args.no_tmpfs,
                         progress_callback=None
                     )
                     futures.append((target, future))
 
                 for target, future in [(t, f) for t, f in futures]:
                     try:
+                        target_name = target.get('name', target.get('host', 'Unknown'))
                         if future.result():
                             success_count += 1
                         else:
                             failure_count += 1
-                            target_name = target.get('name', target.get('host', 'Unknown'))
                             failed_targets.append(target_name)
-                            if not args.compose_style:
-                                logger.error(f"Backup failed for target: {target_name}")
+                            logger.error(f"Backup failed for target: {target_name}")
                         if compose_handler:
                             compose_handler.update(target_name, "Finished" if success_count > 0 else "Failed")
                     except Exception as e:
@@ -575,15 +598,13 @@ def main() -> None:
                         failed_targets.append(target_name)
                         if compose_handler:
                             compose_handler.update(target_name, "Failed")
-                        if not args.compose_style:
-                            logger.error(f"Backup failed for target {target_name}: {str(e)}")
+                        logger.error(f"Backup failed for target {target_name}: {str(e)}")
         except KeyboardInterrupt:
             logger.error("Backup operation interrupted by user")
             sys.exit(1)
     else:
         # Sequential backup
-        if not args.compose_style:
-            logger.info("Running sequential backup")
+        logger.info("Running sequential backup")
         
         for target in targets_data:
             try:
@@ -611,6 +632,7 @@ def main() -> None:
                     config=global_config,
                     suppress_logs=args.compose_style,
                     compose_handler=compose_handler,
+                    no_tmpfs=args.no_tmpfs,
                     progress_callback=None
                 ):
                     success_count += 1
@@ -624,8 +646,7 @@ def main() -> None:
                 failed_targets.append(target.get('name', target.get('host', 'Unknown')))
                 if compose_handler:
                     compose_handler.update(target['name'], "Failed")
-                if not args.compose_style:
-                    logger.error(f"Backup failed: {str(e)}")
+                logger.error(f"Backup failed: {str(e)}")
 
     if compose_handler:
         compose_handler.close()

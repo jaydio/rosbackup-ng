@@ -4,7 +4,9 @@ This document outlines the planned features and improvements for future releases
 
 ## Planned Features
 
-### 1. Additional Notification Channels
+### 1. Notification System
+- [x] E-Mail (SMTP) support (initial release)
+- [ ] Channel Specific Alerting templates
 - [ ] Generic webhook support
 - [ ] Telegram integration
 - [ ] NTFY.sh for push notifications)
@@ -17,30 +19,33 @@ This document outlines the planned features and improvements for future releases
 - [ ] ... insert more notification channels ...
 
 ### 2. Backup Enhancements
-- [ ] Use a temporary ramdisk to store binary backup
-      - Instead of saving to primary storage of target
+- [x] Use a temporary file system (tmpfs) to store binary backup (0.5.0)
+      - Instead of saving to primary storage of target (flash for most appliances)
+- [ ] Integrate GIT support for plaintext backups
 - [ ] Support for certificate store backup
 - [ ] Automatic certificate renewal tracking
 
 ### 4. Monitoring and Reporting
+- [ ] Prometheus endpoint
 - [ ] Detailed backup statistics
 - [ ] Performance metrics collection
 - [ ] Status dashboard
-- [ ] Custom report generation
+- [ ] Custom report generation (PDF/E-Mail)
 - [ ] Backup success rate tracking
 
 ### 5. Integration Features
-- [ ] Make this a PyPI package
+- [ ] PyPI package
 - [ ] Docker Image
 - [ ] REST API for remote management
 - [ ] Integration with monitoring systems
-- [ ] Backup scheduling service
+- [ ] Backup scheduling service (async)
 
 ### 6. User Experience
 - [ ] Web-based management interface
 
-### 7. Recovery Features
+### 7. Misc Features
 - [ ] Remote restore capabilities
+- [ ] Basic Remote command execution functionality
 - [ ] Recovery testing tools
 
 Missing a feature? Open an issue or send a PR :)

@@ -38,6 +38,28 @@
 | `keepalive_countmax` | int | `3` | No | Yes | Max failed keepalives before disconnect |
 | `disabled_algorithms` | dict | `{"pubkeys": ["rsa-sha1"]}` | No | Yes | Dict of algorithms to disable (see [here](https://docs.paramiko.org/en/stable/api/transport.html#paramiko.transport.Transport.disabled_algorithms) for details)|
 
+### Tmpfs Settings (`tmpfs` section)
+
+| Parameter | Type | Default | Required | Description |
+|-----------|------|---------|----------|-------------|
+| `enabled` | bool | `true` | No | Enable/disable tmpfs usage globally |
+| `fallback_enabled` | bool | `true` | No | Fall back to root storage if tmpfs fails |
+| `size_auto` | bool | `true` | No | Calculate size based on available memory |
+| `size_mb` | int | `50` | No | Fixed size in MB when size_auto is false |
+| `min_size_mb` | int | `1` | No | Minimum size in MB for auto calculation |
+| `max_size_mb` | int | `50` | No | Maximum size in MB for auto calculation |
+| `mount_point` | str | `"rosbackup"` | No | Name for the tmpfs mount point |
+
+Notes:
+- Parameters marked with Global in Default inherit from global configuration
+- When `size_auto` is true:
+  - For routers with ≥256MB free memory: Uses fixed 50MB
+  - For routers with <256MB free memory: Uses 1% of available memory
+  - Result is clamped between `min_size_mb` and `max_size_mb`
+- Requires RouterOS v7.7 or later
+- Automatically falls back to root storage for older versions when `fallback_enabled` is true
+- Fails with error for older versions when `fallback_enabled` is false
+
 ### Notification Settings
 
 | Parameter | Type | Default | Required | Overridable | Description |
@@ -86,8 +108,30 @@
 | `private_key` | str | None | Yes | No | Path to SSH private key |
 | `args` | dict | Global | No | N/A | Target-specific SSH arguments |
 
+### Target Tmpfs Settings (`tmpfs` section)
+
+| Parameter | Type | Default | Required | Overridable | Description |
+|-----------|------|---------|----------|-------------|-------------|
+| `enabled` | bool | Global | No | Yes | Enable/disable tmpfs usage |
+| `fallback_enabled` | bool | Global | No | Yes | Fall back to root storage if tmpfs fails |
+| `size_mb` | int | Global | No | Yes | Override global fixed size in MB |
+
 Notes:
-- "_Overridable_" indicates if the parameter can be overridden in targets.yaml
-- "_CLI_" in Overridable means the parameter can only be overridden via command-line
 - Parameters marked with Global in Default inherit from global configuration
-- SSH args in targets can override any args from global configuration
+- Other tmpfs parameters (`size_auto`, `min_size_mb`, `max_size_mb`, `mount_point`) can only be set in global configuration
+- When `size_auto` is true in global config:
+  - For routers with ≥256MB free memory: Uses fixed 50MB
+  - For routers with <256MB free memory: Uses 1% of available memory
+  - Result is clamped between `min_size_mb` and `max_size_mb`
+- Requires RouterOS v7.7 or later
+- Automatically falls back to root storage for older versions when `fallback_enabled` is true
+- Fails with error for older versions when `fallback_enabled` is false
+
+### Target SSH Settings (`ssh` section)
+
+| Parameter | Type | Default | Required | Overridable | Description |
+|-----------|------|---------|----------|-------------|-------------|
+| `port` | int | `22` | No | No | SSH port number |
+| `user` | str | Global | No | N/A | Target-specific SSH username |
+| `private_key` | str | None | Yes | No | Path to SSH private key |
+| `args` | dict | Global | No | N/A | Target-specific SSH arguments |

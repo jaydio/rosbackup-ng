@@ -19,6 +19,8 @@ The main backup utility for RouterOS devices.
 | `-m` | `--max-parallel` | None | No | Override maximum parallel backups |
 | `-t` | `--target` | None | No | Run backup on specific target only |
 | `-x` | `--compose-style` | False | No | Show Docker Compose style output instead of log messages ¹ |
+| `-T` | `--no-tmpfs` | False | No | Disable tmpfs usage globally (overrides all config) |
+| `-s` | `--tmpfs-size` | None | No | Override tmpfs size globally in MB (e.g., "25") |
 
 ¹ The `--log-file`, `--log-level`, and `--compose-style` options are mutually exclusive and cannot be used together.
 
